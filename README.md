@@ -103,6 +103,7 @@ The boosters provide 10 selectable speed levels and are controlled individually 
 <p align="center">
   <img src="Photos/products/61rP3lfUvCL._AC_SL1500_.jpg" width="50%">
 </p>
+<p align="center">
   <img src="Photos/products/719suP-GdML._AC_SL1500_.jpg" width="31%">
   <img src="Photos/products/71QllN3aedL._AC_SL1500_.jpg" width="31%">
 </p>
@@ -111,6 +112,8 @@ The boosters provide 10 selectable speed levels and are controlled individually 
   <img src="Photos/products/71U9ywOyj6L._AC_SL1500_.jpg" width="31%">
   <img src="Photos/products/71jVMTwgRZL._AC_SL1500_.jpg" width="31%">
 </p>
+
+<p align="center">
   <img src="Photos/products/810lE5zgJHL._AC_SL1500_.jpg" width="31%">
   <img src="Photos/products/81AaMseL5qL._AC_SL1500_.jpg" width="31%">
 </p>

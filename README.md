@@ -659,37 +659,706 @@ home-assistant-hvac-balancing/
 
 ---
 
-## Current Status
+# Current Status
 
-The system is currently operational and controlling both bedroom boosters.
+The HVAC balancing system is currently operational and has been field-tested during **summer cooling conditions**.
 
-Current functionality includes:
+The current implementation should therefore be considered the first production version of the project:
 
-- Bedroom-to-Kitchen temperature comparison
-- Cooling and heating directional logic
-- Dynamic 10-level booster control
-- Minimum Speed 1 while HVAC is active
-- Central HVAC blower assistance
-- Hysteresis
-- Five-minute post-circulation
-- Home Assistant restart recovery
-- Periodic command reconciliation
-- Historical monitoring using ApexCharts
-- Energy monitoring used to help tune the control strategy
+> **Summer / Cooling Balancing**
 
-The controller continues to be tuned based on real-world temperature and energy data.
+The primary problem addressed by this version is the tendency of the upstairs bedrooms to become warmer than the Kitchen and main living areas during air-conditioning operation.
+
+Two smart register booster fans are currently installed:
+
+- Bed 1
+- Bed 2
+
+The Kitchen temperature sensor is used as the main reference for the balancing algorithm.
 
 ---
 
-## Future Development
+## Current Summer Configuration
 
-Future improvements may include room-specific control curves, different heating and cooling profiles, occupancy-aware balancing, outdoor-temperature compensation, automatic tuning based on equalization time, and energy-aware optimization.
+During cooling operation, Home Assistant continuously compares each bedroom temperature against the Kitchen reference temperature.
 
-One particularly interesting future direction is measuring the relationship between:
+A warmer bedroom creates a positive temperature imbalance and therefore additional airflow demand.
 
-**booster speed → airflow improvement → equalization time → central blower runtime → compressor runtime**
+The system can respond at several levels:
 
-This could eventually allow the controller to automatically select the most efficient strategy for each room.
+1. No balancing action
+2. Local booster airflow
+3. Increased booster speed
+4. Booster airflow combined with central HVAC circulation
+
+The objective is to use additional airflow before relying on additional compressor runtime whenever possible.
+
+---
+
+## Current Temperature Inputs
+
+The controller currently uses:
+
+| Location | Function |
+|---|---|
+| Kitchen | Main temperature reference |
+| Bed 1 | Controlled upstairs room |
+| Bed 2 | Controlled upstairs room |
+
+The raw temperature difference is calculated as:
+
+**Bedroom Temperature − Kitchen Temperature**
+
+During cooling, a positive value means that the bedroom is warmer than the Kitchen and additional airflow may be required.
+
+---
+
+## Current Booster Control
+
+The bedroom boosters are independently controlled according to the temperature imbalance.
+
+The current summer control curve is:
+
+| Directional Temperature Difference | Booster Target |
+|---:|---:|
+| `< 1.5°F` | OFF |
+| `1.5 – <2.0°F` | Speed 2 |
+| `2.0 – <2.5°F` | Speed 4 |
+| `2.5 – <3.0°F` | Speed 6 |
+| `3.0 – <3.5°F` | Speed 8 |
+| `≥ 3.5°F` | Speed 10 |
+
+The original implementation used a more conservative speed strategy.
+
+Real-world testing showed that room equalization was too slow and the boosters rarely used their available airflow capacity.
+
+The current curve was therefore made more aggressive.
+
+---
+
+## HVAC-Active Assistance
+
+Whenever the central HVAC system is actively cooling, both bedroom boosters operate at a minimum of **Speed 1**.
+
+This means that conditioned air already being produced by the HVAC system receives at least a small amount of assistance reaching the upstairs bedrooms.
+
+The Speed 1 rule acts only as a minimum.
+
+If the calculated room imbalance requires Speed 2, 4, 6, 8 or 10, the higher value takes priority.
+
+---
+
+## Central Blower Assistance
+
+Local booster airflow is used first.
+
+When either bedroom reaches a calculated target of **Speed 4 or greater**, Home Assistant also requests central HVAC blower circulation.
+
+With the current summer control curve, this happens at approximately:
+
+**2.0°F of directional temperature imbalance**
+
+This creates two balancing stages:
+
+**Local airflow correction**
+
+followed by:
+
+**Local booster + whole-house circulation**
+
+when the imbalance becomes larger.
+
+---
+
+## Anti-Oscillation Control
+
+The current implementation includes approximately **0.2°F of hysteresis** around the booster speed thresholds.
+
+This prevents small temperature fluctuations from repeatedly changing speeds.
+
+For example:
+
+- Speed 4 begins around 2.0°F
+- The controller does not return to Speed 2 until the imbalance falls to approximately 1.8°F
+
+This behavior significantly reduces unnecessary switching and repeated Tuya commands.
+
+---
+
+## Post-Circulation
+
+When neither bedroom requires central blower assistance anymore, the Nest circulation request is not immediately cancelled.
+
+The controller waits an additional:
+
+**5 minutes**
+
+and then checks the current demand again.
+
+If both rooms remain below the central circulation threshold, the independent blower request is cancelled.
+
+If demand returns during that period, the automation restarts and the pending shutdown is cancelled.
+
+---
+
+## Desired-State Fan Control
+
+The booster fans are Tuya-based devices controlled through Xtend Tuya.
+
+During implementation, command execution proved sufficiently reliable for the required operations, while some device-state feedback could remain stale.
+
+For that reason, Home Assistant currently operates as the source of truth for the desired fan state.
+
+The automation explicitly commands:
+
+- `FAN` operating mode
+- Fan percentage
+- Fan ON
+- Fan OFF
+
+It does not require the reported booster percentage or mode to be correct before making the next control decision.
+
+---
+
+## Automatic Recovery and Reconciliation
+
+The controller includes several mechanisms intended to maintain the desired state.
+
+It reacts immediately when:
+
+- Bed 1 calculated target changes
+- Bed 2 calculated target changes
+- HVAC `hvac_action` changes
+
+It also runs:
+
+- At Home Assistant startup
+- Once per hour as a reconciliation cycle
+
+The periodic cycle helps recover from situations such as a missed Tuya command, device restart or temporary integration problem.
+
+---
+
+## Monitoring
+
+The current implementation includes a dedicated Home Assistant dashboard for monitoring and tuning.
+
+The dashboard provides:
+
+- Current HVAC state
+- Kitchen temperature
+- Bedroom temperatures
+- Temperature deltas
+- Calculated booster targets
+- Booster activity
+- Central blower activity
+- Commanded versus reported Xtend Tuya state
+- 24-hour and 48-hour historical trends
+
+ApexCharts is used to analyze how temperature imbalance evolves and how the controller reacts.
+
+The most important metric is not simply room temperature, but how quickly the bedroom temperature difference returns toward zero after the controller responds.
+
+---
+
+## Energy Monitoring
+
+The HVAC system is also monitored electrically.
+
+Testing showed that the central indoor blower consumes substantially less power than the outdoor AC compressor/condenser.
+
+This supports the idea of using controlled air redistribution as an intermediate strategy before additional compressor operation whenever conditions allow.
+
+Exact consumption values are specific to this installation and are used primarily for comparative analysis.
+
+---
+
+## Seasonal Scope
+
+Although some of the underlying template logic already recognizes both cooling and heating directions, **the current physical system and controller tuning have only been validated for summer operation**.
+
+The current installation therefore should not yet be considered a completed year-round HVAC balancing system.
+
+The summer problem is primarily:
+
+**Upstairs bedrooms becoming too warm**
+
+and the current solution is:
+
+**Increase conditioned airflow to the upstairs bedrooms.**
+
+Winter introduces a different thermal distribution problem and will require additional field testing and likely additional hardware.
+
+---
+
+## Current Implementation Checklist
+
+### Summer / Cooling
+
+- [x] Kitchen reference temperature
+- [x] Bed 1 temperature monitoring
+- [x] Bed 2 temperature monitoring
+- [x] Bedroom temperature-delta calculation
+- [x] Cooling directional-error calculation
+- [x] Dynamic booster speed control
+- [x] Ten-level booster capability
+- [x] Summer speed curve tuned from real-world data
+- [x] Minimum Speed 1 while HVAC is actively cooling
+- [x] Central blower assistance starting at Speed 4
+- [x] 0.2°F hysteresis
+- [x] Five-minute post-circulation
+- [x] Home Assistant restart recovery
+- [x] Hourly desired-state reconciliation
+- [x] Xtend Tuya command validation
+- [x] Xtend Tuya feedback diagnostics
+- [x] Historical ApexCharts monitoring
+- [x] HVAC electrical monitoring
+- [x] Real-world summer operation validated
+
+### Winter / Heating
+
+- [ ] Winter thermal behavior measured
+- [ ] Basement heating imbalance characterized
+- [ ] Basement booster evaluated
+- [ ] Basement booster installed if required
+- [ ] Heating-specific control thresholds validated
+- [ ] Heating-specific booster curve tuned
+- [ ] Central circulation strategy validated for heating
+- [ ] Interaction between upstairs and basement balancing tested
+- [ ] Winter energy impact measured
+- [ ] Full heating configuration field-tested
+
+---
+
+# Future Development
+
+The next major phase of this project is to evolve the current summer controller into a **season-aware, whole-house HVAC balancing system**.
+
+The goal is not simply to reuse the summer settings during winter.
+
+Cooling and heating create different thermal patterns in the house, so each operating mode should eventually have its own experimentally validated balancing strategy.
+
+---
+
+## Phase 2 — Winter / Heating Balancing
+
+The main winter problem is expected to be different from the summer condition.
+
+During summer:
+
+**Upstairs bedrooms tend to become too warm.**
+
+During winter:
+
+**The basement tends to become significantly colder than the rest of the house.**
+
+This means that the winter system may need to direct additional conditioned airflow downward instead of primarily assisting the upstairs bedrooms.
+
+The expected winter architecture is:
+
+```text
+                         HVAC MODE
+                            │
+                 ┌──────────┴──────────┐
+                 │                     │
+              COOLING               HEATING
+                 │                     │
+                 ▼                     ▼
+       Upstairs balancing      Whole-house / basement
+                 │               heating balancing
+          Bed 1 Booster                │
+          Bed 2 Booster         Basement Booster
+                 │                     │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                     Central Blower
+```
+
+---
+
+## Basement Booster
+
+One of the first winter experiments will be determining whether a register booster fan should be installed in the basement.
+
+The expected purpose of the basement booster would be to increase warm supply airflow when the basement is colder than the Kitchen reference.
+
+A possible future entity could be:
+
+`fan.basement_booster`
+
+with a corresponding calculated target such as:
+
+`sensor.basement_booster_target_speed`
+
+The final hardware decision should be based on actual winter measurements rather than assuming that the summer strategy can simply be inverted.
+
+---
+
+## Basement Temperature Delta
+
+A future winter controller would likely introduce a basement balancing variable based on:
+
+**Kitchen Temperature − Basement Temperature**
+
+during heating.
+
+For example:
+
+| Heating Difference | Possible Initial Target |
+|---:|---:|
+| `< 1.5°F` | OFF |
+| `1.5 – <2.0°F` | Speed 2 |
+| `2.0 – <2.5°F` | Speed 4 |
+| `2.5 – <3.0°F` | Speed 6 |
+| `3.0 – <3.5°F` | Speed 8 |
+| `≥ 3.5°F` | Speed 10 |
+
+These values are only an initial hypothesis.
+
+They should not be considered the final winter configuration until actual heating-season data has been collected.
+
+The basement may require a completely different curve because its duct length, heat loss, room volume and thermal behavior differ from the upstairs bedrooms.
+
+---
+
+## Separate Cooling and Heating Profiles
+
+The long-term controller should maintain separate seasonal profiles.
+
+For example:
+
+### Cooling Profile
+
+Optimized for:
+
+- Warm upstairs bedrooms
+- Increased upstairs airflow
+- Bedroom booster control
+- Central circulation for larger upstairs imbalances
+
+### Heating Profile
+
+Optimized for:
+
+- Cold basement conditions
+- Increased basement supply airflow
+- Possibly different upstairs behavior
+- Different central circulation thresholds
+- Different booster speed curves
+
+The controller should automatically select the appropriate strategy based on the HVAC operating mode.
+
+---
+
+## Heating While HVAC Is Idle
+
+One area that requires specific winter testing is whether circulation should be requested while the furnace is not actively heating.
+
+During cooling, circulating already-cooled air can help redistribute temperature differences.
+
+During winter, the behavior may be different.
+
+If:
+
+`hvac_action = heating`
+
+warm conditioned air is actively available and booster assistance clearly has value.
+
+If:
+
+`hvac_action = idle`
+
+running a basement booster or central blower may simply redistribute existing indoor air without meaningfully warming the basement.
+
+It could still improve temperature equalization in some conditions, but this needs to be measured rather than assumed.
+
+The winter controller may therefore distinguish between:
+
+**Heating actively running**
+
+and:
+
+**Heating selected but currently idle**
+
+when deciding whether booster-only or central circulation operation is worthwhile.
+
+---
+
+## Independent Room Control Curves
+
+Another future improvement is to stop assuming that every room requires the same control curve.
+
+Each room has different characteristics:
+
+- Duct length
+- Supply register size
+- Room volume
+- Exterior wall exposure
+- Window area
+- Solar load
+- Insulation
+- Distance from the central blower
+- Return-air path
+- Natural thermal behavior
+
+Future versions could therefore use different thresholds for:
+
+- Bed 1
+- Bed 2
+- Basement
+
+For example, one bedroom may respond strongly to Speed 4 while another may require Speed 6 to achieve the same equalization rate.
+
+---
+
+## Effective Target Sensors
+
+The current template sensors expose the temperature-derived target.
+
+The automation then applies additional operational rules such as the minimum Speed 1 while the HVAC is active.
+
+A future improvement would be to expose separate effective-target sensors:
+
+- `sensor.bed_1_booster_effective_target_speed`
+- `sensor.bed_2_booster_effective_target_speed`
+- potentially `sensor.basement_booster_effective_target_speed`
+
+This would allow the dashboard to display the exact speed the controller intends to command after all rules have been applied.
+
+That would remove the current situation where the temperature target can display `0` while the physical booster is intentionally running at Speed 1.
+
+---
+
+## Command Verification
+
+Xtend Tuya currently provides the control functions needed by the project, but reported state can occasionally remain stale.
+
+If future versions improve feedback reliability, the controller could evolve from a pure desired-state model toward command verification.
+
+For example:
+
+```text
+Desired Speed
+      │
+      ▼
+Send command
+      │
+      ▼
+Read reported state
+      │
+   ┌──┴──┐
+   │     │
+ Match  Mismatch
+   │     │
+   ▼     ▼
+ Done   Retry / Alert
+```
+
+This could provide automatic detection of:
+
+- Failed commands
+- Offline boosters
+- Stuck fan state
+- Unexpected mode changes
+
+---
+
+## Occupancy-Aware Balancing
+
+Another possible improvement is incorporating room occupancy.
+
+A room that is unoccupied for many hours may not need the same aggressive balancing strategy as an occupied bedroom.
+
+Future logic could therefore combine:
+
+**Temperature demand + HVAC state + occupancy**
+
+to determine how aggressively airflow should be redistributed.
+
+This could be particularly useful at night when bedroom comfort becomes the priority.
+
+---
+
+## Nighttime Comfort Profile
+
+Sleeping periods may justify a dedicated control profile.
+
+Possible nighttime behavior could include:
+
+- Tighter bedroom temperature limits
+- More aggressive bedroom balancing
+- Different booster noise limits
+- Reduced balancing for unused areas
+- Different central blower thresholds
+
+The objective would be to prioritize comfort in occupied bedrooms without unnecessarily balancing the entire house to the same precision.
+
+---
+
+## Outdoor Temperature Compensation
+
+The amount of balancing required is likely related to outdoor temperature.
+
+For example, a 2°F bedroom difference during mild weather may behave differently from the same 2°F difference during extreme summer heat.
+
+A future controller could use outdoor temperature to dynamically modify:
+
+- Booster thresholds
+- Maximum booster speed
+- Central circulation threshold
+- Expected equalization time
+
+The same principle could be applied during very cold winter conditions.
+
+---
+
+## Adaptive Controller Tuning
+
+The current thresholds were manually tuned by observing real historical data.
+
+A future version could automatically learn how effectively each booster changes room temperature.
+
+For every balancing event, Home Assistant could record:
+
+- Starting ΔT
+- Booster speed
+- Central blower state
+- Outdoor temperature
+- HVAC operating state
+- Time required to reduce ΔT
+- Final ΔT
+
+Over time, this could estimate relationships such as:
+
+**Speed 4 → average equalization rate**
+
+or:
+
+**Speed 8 + central blower → average equalization rate**
+
+for each room.
+
+The controller could eventually choose the lowest airflow level expected to correct the imbalance within a desired period.
+
+---
+
+## Equalization Performance Metrics
+
+The project currently relies heavily on visual graph analysis.
+
+Future template sensors could calculate objective performance metrics such as:
+
+- Average bedroom ΔT
+- Maximum daily ΔT
+- Time above 1.5°F imbalance
+- Time above 2.0°F imbalance
+- Average equalization time
+- Booster runtime per room
+- Central blower balancing runtime
+- Percentage of time rooms remain within target tolerance
+
+This would make it possible to compare controller versions quantitatively.
+
+---
+
+## Energy Optimization
+
+A more advanced version could combine thermal and electrical data.
+
+The controller already has access to information that can be used to compare:
+
+- Central blower operation
+- AC compressor operation
+- Temperature imbalance
+- Booster activity
+
+A future optimization objective could become:
+
+> Maintain acceptable room temperature balance using the least additional energy.
+
+That could involve determining whether it is more efficient in a particular situation to use:
+
+- Booster only
+- Booster + central blower
+- Wait for the next normal HVAC cycle
+- More aggressive airflow for a shorter period
+- Lower airflow for a longer period
+
+---
+
+## Seasonal Performance Comparison
+
+Once winter operation has been implemented, the project should maintain separate performance data for:
+
+### Cooling Season
+
+- Upstairs ΔT
+- Bedroom booster runtime
+- Central circulation runtime
+- AC runtime
+- Equalization time
+
+### Heating Season
+
+- Basement ΔT
+- Basement booster runtime
+- Furnace runtime
+- Central circulation runtime
+- Equalization time
+
+This will make it possible to understand whether the same general balancing architecture performs equally well across both seasons.
+
+---
+
+## Long-Term Goal
+
+The long-term objective is a controller that automatically determines:
+
+1. Which rooms are outside the desired thermal balance
+2. Whether the HVAC is heating, cooling or idle
+3. Which rooms should receive additional airflow
+4. The minimum booster speed required
+5. Whether the central blower should assist
+6. When circulation should stop
+7. Whether the chosen strategy is actually reducing the imbalance
+8. Whether a different strategy would use less energy
+
+Conceptually:
+
+```text
+Room Temperatures
+        +
+HVAC Operating State
+        +
+Outdoor Conditions
+        +
+Occupancy
+        +
+Historical Performance
+        │
+        ▼
+   Home Assistant
+        │
+        ▼
+Season-Aware Balancing Strategy
+        │
+   ┌────┼─────┐
+   ▼    ▼     ▼
+ Bed 1 Bed 2 Basement
+   │    │     │
+   └────┼─────┘
+        ▼
+ Central Blower
+        │
+        ▼
+Measure Result
+        │
+        ▼
+Optimize Next Decision
+```
+
+The current summer controller is the first working stage toward that architecture.
 
 ---
 

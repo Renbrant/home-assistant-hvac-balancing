@@ -98,6 +98,24 @@ Two smart HVAC register booster fans are installed in the bedrooms.
 
 The boosters provide 10 selectable speed levels and are controlled individually by Home Assistant.
 
+### Booster Fan Photos
+
+<p align="center">
+  <img src="Photos/products/61rP3lfUvCL._AC_SL1500_.jpg" width="31%">
+  <img src="Photos/products/719suP-GdML._AC_SL1500_.jpg" width="31%">
+  <img src="Photos/products/71QIIN3aedL._AC_SL1500_.jpg" width="31%">
+</p>
+
+<p align="center">
+  <img src="Photos/products/71U9ywOyj6L._AC_SL1500_.jpg" width="31%">
+  <img src="Photos/products/71jVMTwgRZL._AC_SL1500_.jpg" width="31%">
+  <img src="Photos/products/810IE5zgJHL._AC_SL1500_.jpg" width="31%">
+</p>
+
+<p align="center">
+  <img src="Photos/products/81AaMseL5qL._AC_SL1500_.jpg" width="31%">
+</p>
+
 ---
 
 ## Tuya Integration

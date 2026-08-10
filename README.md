@@ -427,6 +427,206 @@ This has been especially useful for tuning the booster speed curve and determini
 
 ---
 
+# Real-World System Behavior
+
+The following screenshots show the system operating in the actual Home Assistant installation.
+
+They are useful for understanding how the calculated temperature imbalance, booster commands and HVAC operation interact over time.
+
+---
+
+## Live System Status
+
+![HVAC Smart Booster - Live Status](Photos/HVAC%20Smart%20Booster%20-%20Live%20Status.png)
+
+The **HVAC Smart Booster - Live Status** card provides a real-time overview of the main variables used by the controller.
+
+It shows the current Nest HVAC state together with the reference and bedroom temperatures.
+
+For each bedroom, the dashboard displays:
+
+- Current room temperature
+- Temperature delta relative to the Kitchen
+- Calculated booster target speed
+- Booster fan entity state
+
+The Nest section also shows `hvac_action` and the current blower state.
+
+This makes the card particularly useful when validating the controller in real time.
+
+For example, during cooling, a positive bedroom ΔT means that the bedroom is warmer than the Kitchen and therefore requires additional airflow.
+
+The **Commanded Speed** shown for each bedroom comes from the calculated target-speed template sensor.
+
+One important detail is that this value represents the **temperature-based target**, not necessarily the final effective command sent to the fan.
+
+When the HVAC is actively heating or cooling, the automation imposes a minimum booster Speed 1 even if the calculated target is zero.
+
+Therefore, it is possible to see:
+
+`Commanded Speed = 0`
+
+while the physical booster is intentionally operating at:
+
+`Speed 1`
+
+This is expected behavior.
+
+Also, because Xtend Tuya feedback can occasionally remain stale, the state reported by the fan entity should not always be interpreted as authoritative physical-device feedback.
+
+The controller itself uses the calculated desired state as its primary source of truth.
+
+---
+
+## Booster Controller
+
+![Booster Controller](Photos/Booster%20Controller.png)
+
+The **Booster Controller** graph is the most useful visualization for understanding the control algorithm itself.
+
+It compares the temperature delta of both bedrooms against the booster target calculated by Home Assistant.
+
+The graph uses two Y axes:
+
+**Left axis — Booster Speed**
+
+`0 → 10`
+
+**Right axis — Temperature Delta**
+
+`-5°F → +5°F`
+
+Bed 1 is represented in yellow and Bed 2 in orange.
+
+The temperature-delta lines are continuous, while the booster commands appear as steps because the controller selects discrete speed levels.
+
+With the current control curve, the relationship is:
+
+| Directional Temperature Difference | Booster Target |
+|---:|---:|
+| `< 1.5°F` | OFF |
+| `1.5 – <2.0°F` | Speed 2 |
+| `2.0 – <2.5°F` | Speed 4 |
+| `2.5 – <3.0°F` | Speed 6 |
+| `3.0 – <3.5°F` | Speed 8 |
+| `≥ 3.5°F` | Speed 10 |
+
+The graph therefore makes it possible to visually confirm that booster speed increases as the room moves farther away from the reference temperature.
+
+It also makes the hysteresis behavior visible.
+
+For example, once Speed 4 has been reached at approximately 2.0°F of imbalance, the controller does not immediately drop back to Speed 2 when the temperature falls slightly below 2.0°F.
+
+The difference must fall to approximately 1.8°F before the lower level is selected.
+
+This prevents rapid oscillation between adjacent speeds.
+
+### Visual separation of equal booster speeds
+
+Both bedrooms frequently require the same booster speed at the same time.
+
+Without any visual adjustment, the two step lines would overlap completely and one would hide the other.
+
+For visualization only, the graph applies a very small offset:
+
+`Bed 1 = displayed 0.12 below the real level`
+
+`Bed 2 = displayed 0.12 above the real level`
+
+For example, when both calculated targets are Speed 4, the plotted positions are approximately:
+
+`Bed 1 → 3.88`
+
+`Bed 2 → 4.12`
+
+The actual target value remains **Speed 4 for both rooms**.
+
+This offset affects only the graph and has absolutely no effect on the automation or fan commands.
+
+The exact raw target is still shown in the ApexCharts header.
+
+The horizontal white reference line represents:
+
+`ΔT = 0°F`
+
+At this point, the bedroom and Kitchen temperatures are equal.
+
+---
+
+## Temperature Balance
+
+![Temperature Balance](Photos/Temperature%20Balance.png)
+
+The **Temperature Balance** graph provides the long-term view of whether the control strategy is actually accomplishing its objective.
+
+It displays the last **48 hours** of temperature data for:
+
+**Kitchen — red**
+
+**Bed 1 — yellow**
+
+**Bed 2 — orange**
+
+The bedroom temperature deltas are also plotted using a secondary Y axis.
+
+The main temperature axis covers:
+
+`65°F → 85°F`
+
+while the delta axis covers:
+
+`-5°F → +5°F`
+
+Because this graph covers a longer period, measurements are averaged into **10-minute intervals** to make the overall thermal behavior easier to see.
+
+The most important information in this graph is not simply the absolute room temperature.
+
+The objective is to observe how closely the bedroom curves follow the Kitchen temperature over time.
+
+A successful balancing strategy should generally result in:
+
+**smaller temperature differences and shorter periods of significant room imbalance.**
+
+The ΔT curves provide an even clearer view.
+
+A value near:
+
+`0°F`
+
+means the room is closely balanced with the Kitchen.
+
+During cooling:
+
+`positive ΔT`
+
+means the bedroom is warmer than the Kitchen.
+
+During heating:
+
+`negative raw ΔT`
+
+means the bedroom is cooler than the Kitchen.
+
+The controller internally accounts for heating versus cooling direction when determining booster demand.
+
+This graph is especially useful when tuning the system because changes to booster thresholds, central circulation or fan speeds can be compared against the resulting equalization time.
+
+For example, after changing from the original conservative booster strategy to the current more aggressive speed curve, this graph can be used to determine whether temperature differences return toward zero more quickly.
+
+---
+
+## What the Three Views Show Together
+
+These three views represent different layers of the same control system.
+
+**Live Status** shows what the system is doing right now.
+
+**Booster Controller** shows why a particular booster speed was selected.
+
+**Temperature Balance** shows whether those control decisions are actually improving room temperature equalization over time.
+
+Together they provide a practical way to tune the controller using real measured behavior rather than relying only on theoretical thresholds.
+
 ## Home Assistant Configuration
 
 The actual YAML configuration is intentionally kept outside this README to keep the project documentation readable.

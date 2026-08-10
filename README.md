@@ -86,7 +86,7 @@ Home Assistant acts as an additional **airflow-balancing layer**.
 
 ## Register Booster Fans
 
-Two smart register booster fans are currently installed, one in each bedroom.
+Two smart HVAC register booster fans are installed in the bedrooms.
 
 ### Bed 1
 
@@ -96,13 +96,139 @@ Two smart register booster fans are currently installed, one in each bedroom.
 
 [Amazon product page](https://amzn.to/45ns5bJ)
 
-The fans provide 10 controllable speed levels and are integrated with Home Assistant through Xtend Tuya.
+The boosters provide 10 selectable speed levels and are controlled individually by Home Assistant.
 
-Home Assistant controls them using their native `fan` entities.
+---
 
-An important finding during development was that commands sent through Xtend Tuya work reliably, but reported mode and speed feedback may occasionally remain stale.
+## Tuya Integration
 
-For that reason, the controller is based on **desired state calculated by Home Assistant**, rather than trusting the device feedback as the primary control input.
+The booster fans are Tuya-based Wi-Fi devices.
+
+They work normally with the Tuya/Smart Life ecosystem, but during this implementation the **official Home Assistant Tuya integration did not expose the controls required to properly operate this particular booster fan model**.
+
+For this reason, the project uses **Xtend Tuya** instead.
+
+### What is Xtend Tuya?
+
+Xtend Tuya is a custom Home Assistant integration designed to extend the official Tuya integration by exposing entities and capabilities that are missing from the standard integration.
+
+Project repository:
+
+[azerty9971/xtend_tuya on GitHub](https://github.com/azerty9971/xtend_tuya)
+
+Xtend Tuya is not part of Home Assistant Core. It works as an extension around the Tuya integration and uses mechanisms that are not officially supported by the Home Assistant Core project.
+
+In this installation, Xtend Tuya exposed the booster fan controls required by the balancing system.
+
+---
+
+## Xtend Tuya Limitations Observed
+
+At the time this project was implemented in **August 2026**, Xtend Tuya was functional for controlling these boosters, but the integration was not completely reliable in terms of device-state feedback.
+
+The most noticeable issue was that Home Assistant could sometimes display stale information for values such as:
+
+- Current fan speed
+- Fan percentage
+- Operating/preset mode
+- Some Tuya select entities
+
+For example, the physical booster could be operating at Speed 1 while Home Assistant still reported a previously selected higher speed.
+
+Likewise, the physical device and the Tuya application could show the correct operating mode while the corresponding Home Assistant entity still displayed the previous state.
+
+This made the reported state unsuitable as the primary feedback signal for the controller.
+
+However, **command delivery worked reliably for the functions required by this project**.
+
+The following operations were successfully tested:
+
+- Set booster operating mode to `FAN`
+- Set fan percentage / booster speed
+- Turn the booster ON
+- Turn the booster OFF
+- Configure a new speed while the booster was OFF
+- Turn the booster ON directly at the previously configured speed
+
+This was sufficient for the balancing controller.
+
+---
+
+## Control Strategy: Desired State Instead of Reported State
+
+Because command execution was reliable but status feedback could be stale, the controller does not depend on the booster-reported speed to determine what should happen next.
+
+Instead, Home Assistant calculates the desired state independently.
+
+The controller determines:
+
+1. The current room temperature difference
+2. The required booster speed
+3. Whether central HVAC circulation is required
+4. The command that should be sent to each booster
+
+The booster is then commanded directly to that desired state.
+
+In other words:
+
+**Home Assistant is the source of truth for the requested booster state.**
+
+The reported Tuya state is treated mainly as diagnostic information.
+
+This is also why the system maintains separate calculated entities for the desired booster speeds instead of relying on the percentage or mode reported by the physical fan.
+
+---
+
+## Booster Command Sequence
+
+Testing showed that the boosters accept mode and speed commands even while they are turned off.
+
+This made it possible to prepare the desired state before starting the fan.
+
+The controller therefore uses the following sequence whenever a booster needs to run:
+
+1. Set operating mode to `FAN`
+2. Wait briefly for the Tuya device to process the command
+3. Set the desired fan percentage
+4. Wait briefly again
+5. Turn the booster ON
+
+The 10 physical booster speed levels map directly to Home Assistant fan percentages:
+
+| Booster Level | Fan Percentage |
+|---:|---:|
+| 1 | 10% |
+| 2 | 20% |
+| 3 | 30% |
+| 4 | 40% |
+| 5 | 50% |
+| 6 | 60% |
+| 7 | 70% |
+| 8 | 80% |
+| 9 | 90% |
+| 10 | 100% |
+
+Preparing the speed before turning the fan on also prevents the booster from temporarily starting at a previously stored high speed.
+
+If no airflow is required, Home Assistant simply sends an OFF command.
+
+---
+
+## Reliability Strategy
+
+Since Tuya state feedback cannot currently be assumed to be completely reliable for these devices, the automation also periodically re-applies the desired state.
+
+This provides a simple reconciliation mechanism in case of:
+
+- A missed Tuya command
+- A temporary cloud/integration communication problem
+- A booster reboot
+- Home Assistant restart
+- Stale device state
+
+The system therefore follows a **desired-state control model** rather than a strict closed-loop controller based on the state reported by the booster itself.
+
+If Xtend Tuya state feedback becomes fully reliable in a future release, the architecture could be expanded to compare commanded and actual booster states and detect failed commands automatically.
 
 ---
 

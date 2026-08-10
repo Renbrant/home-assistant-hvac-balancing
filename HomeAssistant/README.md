@@ -210,11 +210,8 @@ Its responsibilities include:
 - Periodically reconciling the desired state
 
 ![Automation - Part 1](../Photos/automation/1.png)
-
 ![Automation - Part 2](../Photos/automation/2.png)
-
 ![Automation - Part 3](../Photos/automation/3.png)
-
 ![Automation - Part 4](../Photos/automation/4.png)
 
 ---

@@ -1,0 +1,435 @@
+# ==============================================================
+# HOME ASSISTANT HVAC BALANCING
+# Template Sensors
+#
+# This file contains the calculated entities used by the
+# temperature-balancing controller.
+#
+# Expected include method:
+#
+# template: !include templates.yaml
+#
+# Entities created:
+#
+# sensor.bed_1_temperature_delta
+# sensor.bed_2_temperature_delta
+# sensor.bed_1_booster_target_speed
+# sensor.bed_2_booster_target_speed
+#
+# Current controller curve:
+#
+# < 1.5°F   = OFF
+# 1.5-2.0°F = Speed 2
+# 2.0-2.5°F = Speed 4
+# 2.5-3.0°F = Speed 6
+# 3.0-3.5°F = Speed 8
+# >= 3.5°F  = Speed 10
+#
+# Hysteresis:
+# 0.2°F below each threshold before reducing speed.
+#
+# NOTE:
+# The minimum Speed 1 while the HVAC is actively heating or
+# cooling is handled by the automation, not by these templates.
+# ==============================================================
+
+
+- sensor:
+
+    # ==========================================================
+    # BED 1 TEMPERATURE DELTA
+    #
+    # Positive:
+    # Bed 1 is warmer than Kitchen.
+    #
+    # Negative:
+    # Bed 1 is cooler than Kitchen.
+    # ==========================================================
+
+    - name: "Bed 1 Temperature Delta"
+      unique_id: bed_1_temperature_delta
+      unit_of_measurement: "°F"
+
+      state: >
+        {% set room =
+          states('sensor.bed_1_temp_temperature') | float(none)
+        %}
+
+        {% set kitchen =
+          states('sensor.kitchen_temp_temperature') | float(none)
+        %}
+
+        {% if room is not none and kitchen is not none %}
+          {{ (room - kitchen) | round(1) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+
+    # ==========================================================
+    # BED 2 TEMPERATURE DELTA
+    #
+    # Positive:
+    # Bed 2 is warmer than Kitchen.
+    #
+    # Negative:
+    # Bed 2 is cooler than Kitchen.
+    # ==========================================================
+
+    - name: "Bed 2 Temperature Delta"
+      unique_id: bed_2_temperature_delta
+      unit_of_measurement: "°F"
+
+      state: >
+        {% set room =
+          states('sensor.bed_2_temp_temperature') | float(none)
+        %}
+
+        {% set kitchen =
+          states('sensor.kitchen_temp_temperature') | float(none)
+        %}
+
+        {% if room is not none and kitchen is not none %}
+          {{ (room - kitchen) | round(1) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+
+    # ==========================================================
+    # BED 1 BOOSTER TARGET SPEED
+    #
+    # This sensor calculates the desired booster speed based
+    # only on temperature imbalance.
+    #
+    # The automation may later impose Speed 1 as a minimum while
+    # the HVAC is actively heating or cooling.
+    #
+    # COOL:
+    # A bedroom warmer than Kitchen creates demand.
+    #
+    # HEAT:
+    # A bedroom cooler than Kitchen creates demand.
+    #
+    # HEAT_COOL:
+    # hvac_action determines the active direction.
+    #
+    # Increasing thresholds:
+    #
+    # < 1.5°F   = 0
+    # 1.5°F     = 2
+    # 2.0°F     = 4
+    # 2.5°F     = 6
+    # 3.0°F     = 8
+    # 3.5°F     = 10
+    #
+    # Hysteresis = 0.2°F
+    #
+    # Examples:
+    #
+    # Speed 2 starts at 1.5°F
+    # and falls to OFF at <= 1.3°F.
+    #
+    # Speed 4 starts at 2.0°F
+    # and falls to Speed 2 at <= 1.8°F.
+    #
+    # Speed 6 starts at 2.5°F
+    # and falls to Speed 4 at <= 2.3°F.
+    #
+    # Speed 8 starts at 3.0°F
+    # and falls to Speed 6 at <= 2.8°F.
+    #
+    # Speed 10 starts at 3.5°F
+    # and falls to Speed 8 at <= 3.3°F.
+    # ==========================================================
+
+    - name: "Bed 1 Booster Target Speed"
+      unique_id: bed_1_booster_target_speed
+
+      state: >
+        {% set room =
+          states('sensor.bed_1_temp_temperature') | float(none)
+        %}
+
+        {% set kitchen =
+          states('sensor.kitchen_temp_temperature') | float(none)
+        %}
+
+        {% set mode =
+          states('climate.kitchen')
+        %}
+
+        {% set action =
+          state_attr('climate.kitchen', 'hvac_action')
+        %}
+
+        {% set previous =
+          this.state | int(0)
+        %}
+
+
+        {% if room is none or kitchen is none %}
+
+          {{ none }}
+
+        {% else %}
+
+
+          {# ================================================== #}
+          {# CALCULATE DIRECTIONAL TEMPERATURE ERROR            #}
+          {# ================================================== #}
+
+          {% if mode == 'cool' %}
+
+            {% set error = room - kitchen %}
+
+          {% elif mode == 'heat' %}
+
+            {% set error = kitchen - room %}
+
+          {% elif mode == 'heat_cool' and action == 'cooling' %}
+
+            {% set error = room - kitchen %}
+
+          {% elif mode == 'heat_cool' and action == 'heating' %}
+
+            {% set error = kitchen - room %}
+
+          {% else %}
+
+            {% set error = 0 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# INCREASING-DEMAND CURVE                            #}
+          {# ================================================== #}
+
+          {% if error < 1.5 %}
+
+            {% set rising = 0 %}
+
+          {% elif error < 2.0 %}
+
+            {% set rising = 2 %}
+
+          {% elif error < 2.5 %}
+
+            {% set rising = 4 %}
+
+          {% elif error < 3.0 %}
+
+            {% set rising = 6 %}
+
+          {% elif error < 3.5 %}
+
+            {% set rising = 8 %}
+
+          {% else %}
+
+            {% set rising = 10 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# DECREASING-DEMAND CURVE                            #}
+          {#                                                    #}
+          {# Thresholds are shifted down by 0.2°F.             #}
+          {# ================================================== #}
+
+          {% if error <= 1.3 %}
+
+            {% set falling = 0 %}
+
+          {% elif error <= 1.8 %}
+
+            {% set falling = 2 %}
+
+          {% elif error <= 2.3 %}
+
+            {% set falling = 4 %}
+
+          {% elif error <= 2.8 %}
+
+            {% set falling = 6 %}
+
+          {% elif error <= 3.3 %}
+
+            {% set falling = 8 %}
+
+          {% else %}
+
+            {% set falling = 10 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# APPLY HYSTERESIS                                   #}
+          {# ================================================== #}
+
+          {% if rising > previous %}
+
+            {{ rising }}
+
+          {% elif rising < previous %}
+
+            {{ falling }}
+
+          {% else %}
+
+            {{ previous }}
+
+          {% endif %}
+
+        {% endif %}
+
+
+    # ==========================================================
+    # BED 2 BOOSTER TARGET SPEED
+    #
+    # Uses exactly the same control strategy as Bed 1.
+    # ==========================================================
+
+    - name: "Bed 2 Booster Target Speed"
+      unique_id: bed_2_booster_target_speed
+
+      state: >
+        {% set room =
+          states('sensor.bed_2_temp_temperature') | float(none)
+        %}
+
+        {% set kitchen =
+          states('sensor.kitchen_temp_temperature') | float(none)
+        %}
+
+        {% set mode =
+          states('climate.kitchen')
+        %}
+
+        {% set action =
+          state_attr('climate.kitchen', 'hvac_action')
+        %}
+
+        {% set previous =
+          this.state | int(0)
+        %}
+
+
+        {% if room is none or kitchen is none %}
+
+          {{ none }}
+
+        {% else %}
+
+
+          {# ================================================== #}
+          {# CALCULATE DIRECTIONAL TEMPERATURE ERROR            #}
+          {# ================================================== #}
+
+          {% if mode == 'cool' %}
+
+            {% set error = room - kitchen %}
+
+          {% elif mode == 'heat' %}
+
+            {% set error = kitchen - room %}
+
+          {% elif mode == 'heat_cool' and action == 'cooling' %}
+
+            {% set error = room - kitchen %}
+
+          {% elif mode == 'heat_cool' and action == 'heating' %}
+
+            {% set error = kitchen - room %}
+
+          {% else %}
+
+            {% set error = 0 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# INCREASING-DEMAND CURVE                            #}
+          {# ================================================== #}
+
+          {% if error < 1.5 %}
+
+            {% set rising = 0 %}
+
+          {% elif error < 2.0 %}
+
+            {% set rising = 2 %}
+
+          {% elif error < 2.5 %}
+
+            {% set rising = 4 %}
+
+          {% elif error < 3.0 %}
+
+            {% set rising = 6 %}
+
+          {% elif error < 3.5 %}
+
+            {% set rising = 8 %}
+
+          {% else %}
+
+            {% set rising = 10 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# DECREASING-DEMAND CURVE                            #}
+          {# ================================================== #}
+
+          {% if error <= 1.3 %}
+
+            {% set falling = 0 %}
+
+          {% elif error <= 1.8 %}
+
+            {% set falling = 2 %}
+
+          {% elif error <= 2.3 %}
+
+            {% set falling = 4 %}
+
+          {% elif error <= 2.8 %}
+
+            {% set falling = 6 %}
+
+          {% elif error <= 3.3 %}
+
+            {% set falling = 8 %}
+
+          {% else %}
+
+            {% set falling = 10 %}
+
+          {% endif %}
+
+
+          {# ================================================== #}
+          {# APPLY HYSTERESIS                                   #}
+          {# ================================================== #}
+
+          {% if rising > previous %}
+
+            {{ rising }}
+
+          {% elif rising < previous %}
+
+            {{ falling }}
+
+          {% else %}
+
+            {{ previous }}
+
+          {% endif %}
+
+        {% endif %}

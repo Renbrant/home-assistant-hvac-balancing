@@ -1,0 +1,840 @@
+# ==============================================================
+# HOME ASSISTANT HVAC BALANCING
+# Monitoring and Diagnostics Dashboard
+#
+# Dashboard title:
+# HVAC boost
+#
+# This dashboard is used to monitor:
+#
+# - HVAC status
+# - Kitchen and bedroom temperatures
+# - Bedroom temperature deltas
+# - Calculated booster targets
+# - Booster activity
+# - Nest blower activity
+# - Xtend Tuya raw feedback
+# - Commanded vs reported booster state
+#
+# REQUIREMENT:
+# custom:apexcharts-card
+#
+# NOTE:
+# Some Xtend Tuya feedback values may remain stale even when
+# commands are correctly received by the physical booster.
+# The diagnostic cards intentionally expose those values.
+# ==============================================================
+
+
+type: sections
+max_columns: 3
+dense_section_placement: false
+
+
+sections:
+
+  # ============================================================
+  # LIVE STATUS
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: HVAC Smart Booster - Live Status
+        icon: mdi:home-thermometer
+
+      - type: entities
+        show_header_toggle: false
+
+        entities:
+
+          # ----------------------------------------------------
+          # Central HVAC
+          # ----------------------------------------------------
+
+          - entity: climate.kitchen
+            name: Nest HVAC
+
+          - type: attribute
+            entity: climate.kitchen
+            attribute: hvac_action
+            name: HVAC Action
+
+          - type: attribute
+            entity: climate.kitchen
+            attribute: fan_mode
+            name: Nest Blower
+
+          - type: divider
+
+
+          # ----------------------------------------------------
+          # Reference temperature
+          # ----------------------------------------------------
+
+          - entity: sensor.kitchen_temp_temperature
+            name: Kitchen Temperature
+
+          - type: divider
+
+
+          # ----------------------------------------------------
+          # Bed 1
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_1_temp_temperature
+            name: Bed 1 Temperature
+
+          - entity: sensor.bed_1_temperature_delta
+            name: Bed 1 ΔT
+
+          - entity: sensor.bed_1_booster_target_speed
+            name: Bed 1 Commanded Speed
+
+          - entity: fan.bed_1_booster
+            name: Bed 1 Booster
+
+          - type: divider
+
+
+          # ----------------------------------------------------
+          # Bed 2
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_2_temp_temperature
+            name: Bed 2 Temperature
+
+          - entity: sensor.bed_2_temperature_delta
+            name: Bed 2 ΔT
+
+          - entity: sensor.bed_2_booster_target_speed
+            name: Bed 2 Commanded Speed
+
+          - entity: fan.bed_2_booster
+            name: Bed 2 Booster
+
+        grid_options:
+          columns: full
+          rows: auto
+
+
+  # ============================================================
+  # TEMPERATURE BALANCE
+  #
+  # 48-hour comparison of Kitchen, Bed 1 and Bed 2.
+  #
+  # Temperature data is averaged into 10-minute periods to keep
+  # the long-term graph readable.
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: Temperature Balance
+        icon: mdi:chart-line
+
+      - type: custom:apexcharts-card
+        graph_span: 48h
+
+        header:
+          show: true
+          title: Kitchen vs Bedrooms
+          show_states: true
+          colorize_states: true
+
+        now:
+          show: true
+          label: Now
+
+
+        # ------------------------------------------------------
+        # Default series configuration
+        # ------------------------------------------------------
+
+        all_series_config:
+          type: line
+          curve: smooth
+          stroke_width: 2
+          extend_to: now
+
+
+        # ------------------------------------------------------
+        # Y axes
+        # ------------------------------------------------------
+
+        yaxis:
+
+          # Temperature axis
+          - id: temperature
+            min: 65
+            max: 85
+            decimals: 0
+            apex_config:
+              tickAmount: 20
+              title:
+                text: °F
+
+          # Bedroom-to-Kitchen temperature delta
+          - id: delta
+            opposite: true
+            min: -5
+            max: 5
+            decimals: 1
+            apex_config:
+              tickAmount: 10
+              title:
+                text: ΔT °F
+
+
+        # ------------------------------------------------------
+        # Temperature and delta series
+        # ------------------------------------------------------
+
+        series:
+
+          - entity: sensor.kitchen_temp_temperature
+            name: Kitchen
+            yaxis_id: temperature
+            color: red
+            group_by:
+              func: avg
+              duration: 10min
+
+          - entity: sensor.bed_1_temp_temperature
+            name: Bed 1
+            yaxis_id: temperature
+            color: yellow
+            group_by:
+              func: avg
+              duration: 10min
+
+          - entity: sensor.bed_2_temp_temperature
+            name: Bed 2
+            yaxis_id: temperature
+            color: orange
+            group_by:
+              func: avg
+              duration: 10min
+
+          - entity: sensor.bed_1_temperature_delta
+            name: Bed 1 ΔT
+            yaxis_id: delta
+            color: yellow
+            stroke_width: 1
+            group_by:
+              func: avg
+              duration: 10min
+
+          - entity: sensor.bed_2_temperature_delta
+            name: Bed 2 ΔT
+            yaxis_id: delta
+            color: orange
+            stroke_width: 1
+            group_by:
+              func: avg
+              duration: 10min
+
+
+        apex_config:
+          chart:
+            height: 380px
+
+          legend:
+            show: true
+
+          markers:
+            size: 0
+
+          stroke:
+            lineCap: round
+
+        grid_options:
+          columns: full
+          rows: auto
+
+    column_span: 3
+
+
+  # ============================================================
+  # BOOSTER CONTROLLER
+  #
+  # Compares calculated booster target against temperature delta.
+  #
+  # The two booster speed lines are intentionally offset by a
+  # very small graphical amount when they overlap:
+  #
+  # Bed 1: -0.12
+  # Bed 2: +0.12
+  #
+  # This affects visualization only.
+  # The values shown in the header remain the raw target values.
+  # ============================================================
+
+  - type: grid
+    columns: 1
+    square: false
+
+    cards:
+
+      - type: heading
+        heading: Booster Controller
+        icon: mdi:fan-auto
+
+      - type: custom:apexcharts-card
+        graph_span: 24h
+        stacked: false
+
+        header:
+          show: true
+          title: Booster Speed vs Temperature Delta
+          show_states: true
+          colorize_states: true
+
+        now:
+          show: true
+          label: Now
+
+
+        # ------------------------------------------------------
+        # Y axes
+        # ------------------------------------------------------
+
+        yaxis:
+
+          - id: speed
+            min: 0
+            max: 10
+            decimals: 0
+            apex_config:
+              tickAmount: 10
+              title:
+                text: Speed
+
+          - id: delta
+            opposite: true
+            min: -5
+            max: 5
+            decimals: 1
+            apex_config:
+              tickAmount: 10
+              title:
+                text: ΔT °F
+
+
+        # ------------------------------------------------------
+        # Controller series
+        # ------------------------------------------------------
+
+        series:
+
+          # ----------------------------------------------------
+          # Bed 1 calculated target
+          #
+          # Slight visual offset below the real speed prevents
+          # complete overlap with Bed 2 when both have the same
+          # target.
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_1_booster_target_speed
+            name: Bed 1 Speed
+            yaxis_id: speed
+            color: yellow
+            type: line
+            curve: stepline
+            stroke_width: 1
+            stroke_dash: 0
+            opacity: 1
+            float_precision: 0
+            extend_to: now
+
+            show:
+              in_header: raw
+
+            transform: |
+              const value = Number(x);
+              if (!Number.isFinite(value)) return null;
+
+              // Keep Speed 0 inside the graph.
+              return value > 0 ? value - 0.12 : value;
+
+
+          # ----------------------------------------------------
+          # Bed 1 raw temperature delta
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_1_temperature_delta
+            name: Bed 1 ΔT
+            yaxis_id: delta
+            color: yellow
+            type: line
+            curve: smooth
+            stroke_width: 1
+            opacity: 0.4
+            extend_to: now
+
+            show:
+              in_header: raw
+
+            transform: |
+              const value = Number(x);
+              return Number.isFinite(value) ? value : null;
+
+
+          # ----------------------------------------------------
+          # Bed 2 calculated target
+          #
+          # Slight visual offset above the real speed prevents
+          # complete overlap with Bed 1.
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_2_booster_target_speed
+            name: Bed 2 Speed
+            yaxis_id: speed
+            color: orange
+            type: line
+            curve: stepline
+            stroke_width: 1
+            stroke_dash: 0
+            opacity: 1
+            float_precision: 0
+            extend_to: now
+
+            show:
+              in_header: raw
+
+            transform: |
+              const value = Number(x);
+              if (!Number.isFinite(value)) return null;
+
+              // Keep Speed 10 inside the graph.
+              return value < 10 ? value + 0.12 : value;
+
+
+          # ----------------------------------------------------
+          # Bed 2 raw temperature delta
+          # ----------------------------------------------------
+
+          - entity: sensor.bed_2_temperature_delta
+            name: Bed 2 ΔT
+            yaxis_id: delta
+            color: orange
+            type: line
+            curve: smooth
+            stroke_width: 1
+            opacity: 0.4
+            extend_to: now
+
+            show:
+              in_header: raw
+
+            transform: |
+              const value = Number(x);
+              return Number.isFinite(value) ? value : null;
+
+
+        apex_config:
+
+          chart:
+            height: 350px
+
+          legend:
+            show: true
+
+          markers:
+            size: 0
+
+          stroke:
+            lineCap: round
+
+          grid:
+            show: true
+
+
+          # ----------------------------------------------------
+          # ΔT = 0°F reference line
+          # ----------------------------------------------------
+
+          annotations:
+            yaxis:
+              - y: 0
+                yAxisIndex: 1
+                borderColor: white
+                strokeDashArray: 0
+                label:
+                  show: false
+
+        grid_options:
+          columns: full
+          rows: 10
+
+    column_span: 3
+
+
+  # ============================================================
+  # AIRFLOW ACTIVITY
+  #
+  # Displays ON/OFF history using separate Y positions so the
+  # three state lines remain visually distinguishable.
+  #
+  # 0 = Bed 1 OFF
+  # 1 = Bed 1 ON
+  # 2 = Bed 2 OFF
+  # 3 = Bed 2 ON
+  # 4 = Nest OFF
+  # 5 = Nest ON
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: Airflow Activity
+        icon: mdi:air-filter
+
+      - type: custom:apexcharts-card
+        graph_span: 24h
+
+        header:
+          show: true
+          title: Boosters and Nest Blower
+          show_states: false
+
+        now:
+          show: true
+          label: Now
+
+        yaxis:
+
+          - min: 0
+            max: 5
+            decimals: 0
+
+            apex_config:
+              tickAmount: 5
+
+              labels:
+                formatter: |
+                  EVAL:function(value) {
+                    const labels = {
+                      0: "Bed 1 OFF",
+                      1: "Bed 1 ON",
+                      2: "Bed 2 OFF",
+                      3: "Bed 2 ON",
+                      4: "Nest OFF",
+                      5: "Nest ON"
+                    };
+                    return labels[Math.round(value)] || "";
+                  }
+
+
+        all_series_config:
+          type: line
+          curve: stepline
+          stroke_width: 3
+          extend_to: now
+
+
+        series:
+
+          - entity: fan.bed_1_booster
+            name: Bed 1 Booster
+            color: yellow
+            transform: |
+              return x === "on" ? 1 : 0;
+
+          - entity: fan.bed_2_booster
+            name: Bed 2 Booster
+            color: orange
+            transform: |
+              return x === "on" ? 3 : 2;
+
+          - entity: climate.kitchen
+            attribute: fan_mode
+            name: Nest Blower
+            color: cyan
+            transform: |
+              return x === "on" ? 5 : 4;
+
+
+        apex_config:
+          chart:
+            height: 300px
+
+          legend:
+            show: true
+
+          markers:
+            size: 0
+
+        grid_options:
+          columns: full
+          rows: auto
+
+
+  # ============================================================
+  # XTEND TUYA RAW FEEDBACK
+  #
+  # Diagnostic card.
+  #
+  # These values are intentionally displayed even though the
+  # controller does not trust them as authoritative feedback.
+  #
+  # They make it possible to observe whether future versions of
+  # Xtend Tuya improve device-state synchronization.
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: Xtend Tuya Raw Feedback
+        icon: mdi:bug-outline
+
+      - type: entities
+        title: Raw Device Feedback
+        show_header_toggle: false
+
+        entities:
+
+          # ----------------------------------------------------
+          # Bed 1
+          # ----------------------------------------------------
+
+          - type: section
+            label: Bed 1
+
+          - entity: fan.bed_1_booster
+            name: Fan State
+
+          - entity: switch.bed_1_booster_power
+            name: Power DP
+
+          - entity: select.bed_1_booster_speed
+            name: Reported Speed DP
+
+          - type: attribute
+            entity: fan.bed_1_booster
+            attribute: percentage
+            name: Fan Percentage
+
+          - entity: select.bed_1_booster_mode
+            name: Reported Mode DP
+
+          - type: attribute
+            entity: fan.bed_1_booster
+            attribute: preset_mode
+            name: Fan Preset Mode
+
+
+          - type: divider
+
+
+          # ----------------------------------------------------
+          # Bed 2
+          # ----------------------------------------------------
+
+          - type: section
+            label: Bed 2
+
+          - entity: fan.bed_2_booster
+            name: Fan State
+
+          - entity: switch.bed_2_booster_power
+            name: Power DP
+
+          - entity: select.bed_2_booster_speed
+            name: Reported Speed DP
+
+          - type: attribute
+            entity: fan.bed_2_booster
+            attribute: percentage
+            name: Fan Percentage
+
+          - entity: select.bed_2_booster_mode
+            name: Reported Mode DP
+
+          - type: attribute
+            entity: fan.bed_2_booster
+            attribute: preset_mode
+            name: Fan Preset Mode
+
+        grid_options:
+          columns: full
+          rows: auto
+
+
+  # ============================================================
+  # BED 1 FEEDBACK DIAGNOSTICS
+  #
+  # Compares:
+  #
+  # - Calculated controller target
+  # - Xtend Tuya reported speed DP
+  # - Fan percentage attribute
+  #
+  # Useful for identifying stale Tuya feedback.
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: Bed 1 Feedback Diagnostics
+        icon: mdi:chart-timeline-variant
+
+      - type: custom:apexcharts-card
+        graph_span: 24h
+
+        header:
+          show: true
+          title: Bed 1 - Command vs Raw Feedback
+          show_states: true
+          colorize_states: true
+
+        now:
+          show: true
+          label: Now
+
+        yaxis:
+
+          - min: 0
+            max: 10
+            decimals: 0
+
+            apex_config:
+              tickAmount: 10
+              title:
+                text: Speed
+
+
+        all_series_config:
+          type: line
+          curve: stepline
+          stroke_width: 2
+          extend_to: now
+
+
+        series:
+
+          - entity: sensor.bed_1_booster_target_speed
+            name: Commanded
+            color: yellow
+
+          - entity: select.bed_1_booster_speed
+            name: Reported Speed DP
+            color: red
+            transform: |
+              return Number(x);
+
+          - entity: fan.bed_1_booster
+            attribute: percentage
+            name: Fan Percentage / 10
+            color: cyan
+            transform: |
+              return Number(x) / 10;
+
+
+        apex_config:
+          chart:
+            height: 300px
+
+          legend:
+            show: true
+
+          markers:
+            size: 0
+
+        grid_options:
+          columns: full
+          rows: auto
+
+
+  # ============================================================
+  # BED 2 FEEDBACK DIAGNOSTICS
+  #
+  # Same diagnostic approach used for Bed 1.
+  # ============================================================
+
+  - type: grid
+    cards:
+
+      - type: heading
+        heading: Bed 2 Feedback Diagnostics
+        icon: mdi:chart-timeline-variant
+
+      - type: custom:apexcharts-card
+        graph_span: 24h
+
+        header:
+          show: true
+          title: Bed 2 - Command vs Raw Feedback
+          show_states: true
+          colorize_states: true
+
+        now:
+          show: true
+          label: Now
+
+        yaxis:
+
+          - min: 0
+            max: 10
+            decimals: 0
+
+            apex_config:
+              tickAmount: 10
+              title:
+                text: Speed
+
+
+        all_series_config:
+          type: line
+          curve: stepline
+          stroke_width: 2
+          extend_to: now
+
+
+        series:
+
+          - entity: sensor.bed_2_booster_target_speed
+            name: Commanded
+            color: orange
+
+          - entity: select.bed_2_booster_speed
+            name: Reported Speed DP
+            color: red
+            transform: |
+              return Number(x);
+
+          - entity: fan.bed_2_booster
+            attribute: percentage
+            name: Fan Percentage / 10
+            color: cyan
+            transform: |
+              return Number(x) / 10;
+
+
+        apex_config:
+          chart:
+            height: 300px
+
+          legend:
+            show: true
+
+          markers:
+            size: 0
+
+        grid_options:
+          columns: full
+          rows: auto
+
+
+# ==============================================================
+# DASHBOARD METADATA
+# ==============================================================
+
+cards: []
+
+title: HVAC boost

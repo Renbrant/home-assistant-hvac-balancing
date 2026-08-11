@@ -1,14 +1,24 @@
 # Home Assistant Installation
 
-This directory contains the Home Assistant configuration used by the HVAC room-balancing project.
+This directory contains the Home Assistant configuration used by the **Home Assistant HVAC Balancing** project.
 
-The implementation is divided into three configuration files:
+> **Current version: v1.1.0 — Three-bedroom balancing**
+
+Version 1.1 expands the original two-bedroom controller to support:
+
+- Bed 1
+- Bed 2
+- Bed 3
+
+All three bedrooms use the same control strategy and are independently balanced against the Kitchen reference temperature.
+
+The implementation is divided into three main configuration files:
 
 | File | Purpose |
 |---|---|
-| `templates.yaml` | Calculates room temperature deltas and desired booster speeds |
-| `automation.yaml` | Controls the booster fans and Nest central blower |
-| `dashboard.yaml` | Provides monitoring and historical visualization |
+| `templates.yaml` | Calculates room temperature deltas, booster target speeds, and effective booster percentages |
+| `automation.yaml` | Controls the three bedroom booster fans and Nest central blower |
+| `dashboard.yaml` | Provides monitoring, diagnostics, and historical visualization |
 
 The configuration in this repository reflects the working implementation as of **August 2026**.
 
@@ -20,36 +30,95 @@ The current implementation requires:
 
 - Home Assistant
 - Nest thermostat integrated with Home Assistant
-- Temperature sensors for the reference room and controlled rooms
-- Tuya-based smart HVAC register booster fans
+- Dedicated temperature sensors for the Kitchen and three controlled bedrooms
+- Three Tuya-based smart HVAC register booster fans
 - Xtend Tuya custom integration
-- ApexCharts Card for dashboard visualization
+- ApexCharts Card for historical dashboard visualization
 
-The implementation currently controls two bedrooms using the Kitchen as the temperature reference.
+The compact live-status dashboard also uses:
+
+- Multiple Entity Row
+
+The dashboard components are not required for the controller itself.
+
+The control logic can operate without the monitoring dashboard.
 
 ---
 
-# Hardware Used
+# System Architecture
 
-## HVAC Thermostat
+The current v1.1 architecture is:
+
+```text
+                    Nest Thermostat
+                          │
+                          │
+                    HVAC Operating State
+                          │
+                          ▼
+                    Home Assistant
+                          │
+            ┌─────────────┼─────────────┐
+            │             │             │
+            ▼             ▼             ▼
+          Bed 1         Bed 2         Bed 3
+         Sensor         Sensor         Sensor
+            │             │             │
+            ▼             ▼             ▼
+          Delta          Delta          Delta
+            │             │             │
+            ▼             ▼             ▼
+          Target         Target         Target
+            │             │             │
+            ▼             ▼             ▼
+       Effective %   Effective %   Effective %
+            │             │             │
+            ▼             ▼             ▼
+        Booster 1     Booster 2     Booster 3
+
+                    Any Target >= 4
+                          │
+                          ▼
+                   Central Blower
+```
+
+All three bedroom controllers use the same Kitchen reference.
+
+---
+
+# HVAC Thermostat
 
 The central HVAC system is controlled by a Nest thermostat.
 
 Home Assistant entity:
 
-`climate.kitchen`
+```text
+climate.kitchen
+```
 
-The controller uses both the HVAC mode and the `hvac_action` attribute.
+The controller uses:
 
-Relevant `hvac_action` states are:
+- HVAC mode
+- `hvac_action`
+- Nest fan control
 
-- `cooling`
-- `heating`
-- `idle`
+Relevant `hvac_action` states include:
+
+```text
+cooling
+heating
+idle
+```
+
+The Nest thermostat remains responsible for normal HVAC heating and cooling.
+
+Home Assistant adds an independent airflow-balancing layer.
 
 ---
 
-## Temperature Sensors
+# Temperature Sensors
+
+The balancing controller uses dedicated Zigbee temperature sensors.
 
 Current entities:
 
@@ -58,40 +127,47 @@ Current entities:
 | Kitchen | `sensor.kitchen_temp_temperature` |
 | Bed 1 | `sensor.bed_1_temp_temperature` |
 | Bed 2 | `sensor.bed_2_temp_temperature` |
+| Bed 3 | `sensor.bed_3_temp_temperature` |
 
-The Kitchen sensor acts as the temperature reference.
+The Kitchen sensor acts as the main temperature reference.
 
-Dedicated sensors of the same type are used in the bedrooms to improve the consistency of relative temperature measurements.
+The same sensor model is used in all four locations to improve consistency when comparing relative room temperatures.
+
+The controller does not use the Nest thermostat's internal temperature as the primary balancing reference.
 
 ---
 
 # Booster Fans
 
-Two Tuya-based smart register booster fans are installed.
+Three Tuya-based smart register booster fans are installed.
+
+The same booster model is used in all three bedrooms.
+
+Product:
+
+https://amzn.to/45ns5bJ
 
 ## Bed 1
 
-Product:
-
-https://amzn.to/45ns5bJ
-
-Entity:
-
-`fan.bed_1_booster`
+```text
+fan.bed_1_booster
+```
 
 ## Bed 2
 
-Product:
+```text
+fan.bed_2_booster
+```
 
-https://amzn.to/45ns5bJ
+## Bed 3
 
-Entity:
+```text
+fan.bed_3_booster
+```
 
-`fan.bed_2_booster`
+The boosters support ten physical speed levels.
 
-The boosters support ten speed levels.
-
-The Home Assistant fan percentage maps directly to those levels:
+Home Assistant percentage maps directly to those levels:
 
 | Booster Speed | HA Percentage |
 |---:|---:|
@@ -112,15 +188,17 @@ The Home Assistant fan percentage maps directly to those levels:
 
 The booster fans are Tuya devices.
 
-During the development of this project, the official Home Assistant Tuya integration did not expose the controls required to operate these specific booster fans.
+During development, the official Home Assistant Tuya integration did not expose all controls required to operate this specific booster model.
 
 For that reason, this installation uses the custom **Xtend Tuya** integration:
 
 https://github.com/azerty9971/xtend_tuya
 
-Xtend Tuya extends the capabilities available through the standard Tuya integration and can expose entities or functionality not otherwise available for some devices.
+Xtend Tuya extends the entities and functionality available for some Tuya devices.
 
-## Important Limitation
+---
+
+## Important Xtend Tuya Limitation
 
 At the time of this implementation in August 2026, device-state feedback through Xtend Tuya was not completely reliable for these boosters.
 
@@ -131,22 +209,24 @@ Home Assistant could occasionally display stale values for:
 - Operating mode
 - Related Tuya select entities
 
-However, the functions required by this project were successfully working.
+However, the functions required by the controller reliably accepted commands.
 
-The boosters reliably received commands to:
+Successfully tested operations include:
 
 - Set `FAN` mode
 - Set fan percentage
-- Turn ON
-- Turn OFF
+- Turn booster ON
+- Turn booster OFF
 - Configure a speed while OFF
 - Start directly at the configured speed
 
-Because command execution was reliable while feedback could be stale, the project uses a **desired-state control architecture**.
+Because command execution is reliable while feedback may be stale, the project uses a:
 
-Home Assistant calculates the state that the booster should have and sends that state explicitly.
+> **Desired-state control architecture**
 
-Reported booster state is treated mainly as diagnostic information and is not used as the primary control feedback.
+Home Assistant calculates what each booster should be doing and explicitly sends that state.
+
+Reported booster state is treated mainly as diagnostic information.
 
 ---
 
@@ -154,14 +234,52 @@ Reported booster state is treated mainly as diagnostic information and is not us
 
 ## `templates.yaml`
 
-This file creates four important entities:
+The template configuration creates three groups of calculated sensors.
 
-| Entity | Purpose |
-|---|---|
-| `sensor.bed_1_temperature_delta` | Bed 1 temperature relative to Kitchen |
-| `sensor.bed_2_temperature_delta` | Bed 2 temperature relative to Kitchen |
-| `sensor.bed_1_booster_target_speed` | Calculated Bed 1 booster target |
-| `sensor.bed_2_booster_target_speed` | Calculated Bed 2 booster target |
+### Temperature Delta
+
+```text
+sensor.bed_1_temperature_delta
+sensor.bed_2_temperature_delta
+sensor.bed_3_temperature_delta
+```
+
+These sensors always represent:
+
+```text
+Bedroom Temperature - Kitchen Temperature
+```
+
+Therefore:
+
+| Delta | Meaning |
+|---:|---|
+| Positive | Bedroom is warmer than Kitchen |
+| 0°F | Bedroom and Kitchen are equal |
+| Negative | Bedroom is cooler than Kitchen |
+
+---
+
+## Booster Target Speed
+
+```text
+sensor.bed_1_booster_target_speed
+sensor.bed_2_booster_target_speed
+sensor.bed_3_booster_target_speed
+```
+
+These sensors calculate the temperature-based booster target.
+
+Possible values are:
+
+```text
+0
+2
+4
+6
+8
+10
+```
 
 The template logic handles:
 
@@ -171,9 +289,48 @@ The template logic handles:
 - Booster speed calculation
 - 0.2°F hysteresis
 
-### Current Speed Curve
+---
 
-| Relevant ΔT | Target |
+## Effective Booster Percentage
+
+Version 1.1 also exposes:
+
+```text
+sensor.bed_1_booster_effective_percentage
+sensor.bed_2_booster_effective_percentage
+sensor.bed_3_booster_effective_percentage
+```
+
+These sensors mirror the final booster percentage that the automation intends to use after the HVAC minimum-speed rule is applied.
+
+For example:
+
+| Calculated Target | HVAC Action | Effective Percentage |
+|---:|---|---:|
+| 0 | idle | 0% |
+| 0 | cooling | 10% |
+| 0 | heating | 10% |
+| 2 | cooling | 20% |
+| 4 | cooling | 40% |
+| 10 | cooling | 100% |
+
+This distinction is useful for diagnostics.
+
+The calculated target answers:
+
+> Why did the controller select this airflow level?
+
+The effective percentage answers:
+
+> What speed does the automation actually intend to command?
+
+---
+
+# Current Booster Speed Curve
+
+All three bedrooms currently use the same control curve.
+
+| Relevant Temperature Error | Target |
 |---:|---:|
 | `< 1.5°F` | 0 |
 | `1.5 – <2.0°F` | 2 |
@@ -182,11 +339,101 @@ The template logic handles:
 | `3.0 – <3.5°F` | 8 |
 | `≥ 3.5°F` | 10 |
 
-The minimum Speed 1 used while the HVAC is actively running is intentionally **not calculated in the template sensors**.
+Example:
 
-It is applied by the automation as an effective minimum.
+```text
+1.7°F → Speed 2
+2.2°F → Speed 4
+2.7°F → Speed 6
+3.2°F → Speed 8
+3.5°F → Speed 10
+```
 
-This keeps the temperature-based target separate from HVAC assistance.
+---
+
+# Directional Temperature Error
+
+The raw delta is always:
+
+```text
+Bedroom - Kitchen
+```
+
+However, the target-speed sensors interpret that difference according to the selected HVAC operating mode.
+
+## Cooling
+
+```text
+Directional Error =
+Bedroom - Kitchen
+```
+
+A bedroom warmer than Kitchen creates positive demand.
+
+## Heating
+
+```text
+Directional Error =
+Kitchen - Bedroom
+```
+
+A bedroom colder than Kitchen creates positive demand.
+
+## Heat/Cool Mode
+
+If the Nest is configured as:
+
+```text
+heat_cool
+```
+
+the current:
+
+```text
+hvac_action
+```
+
+determines which direction is used.
+
+The template architecture therefore already supports heating direction.
+
+However:
+
+> Heating behavior has not yet been seasonally field-tested or tuned.
+
+The current control thresholds have been validated primarily during summer cooling.
+
+---
+
+# Hysteresis
+
+The template controller uses approximately:
+
+> **0.2°F hysteresis**
+
+This prevents small sensor fluctuations from repeatedly changing booster speeds around a threshold.
+
+Current thresholds:
+
+| Rising Threshold | Target | Falling Threshold |
+|---:|---:|---:|
+| 1.5°F | Speed 2 | ≤ 1.3°F → OFF |
+| 2.0°F | Speed 4 | ≤ 1.8°F → Speed 2 |
+| 2.5°F | Speed 6 | ≤ 2.3°F → Speed 4 |
+| 3.0°F | Speed 8 | ≤ 2.8°F → Speed 6 |
+| 3.5°F | Speed 10 | ≤ 3.3°F → Speed 8 |
+
+Example:
+
+```text
+Speed 4 begins at approximately 2.0°F
+```
+
+but does not fall to Speed 2 until the error reaches approximately:
+
+```text
+1.8°F
+```
 
 ---
 
@@ -194,25 +441,29 @@ This keeps the temperature-based target separate from HVAC assistance.
 
 The primary automation is:
 
-**HVAC - Smart Bedroom Booster Control**
+> **HVAC - Smart Bedroom Booster Control**
+
+Version 1.1 controls:
+
+```text
+Bed 1
+Bed 2
+Bed 3
+```
 
 Its responsibilities include:
 
-- Reading both calculated target speeds
+- Reading all three calculated target speeds
 - Monitoring `hvac_action`
-- Enforcing minimum Speed 1 when the HVAC is actively heating or cooling
+- Enforcing minimum Speed 1 while HVAC is actively heating or cooling
 - Setting booster operating mode
 - Setting booster percentage
-- Turning boosters ON and OFF
-- Starting central Nest circulation
+- Turning each booster ON and OFF independently
+- Starting central Nest circulation when any room reaches Speed 4 or higher
 - Maintaining a five-minute post-circulation period
+- Checking all three rooms before cancelling central circulation
 - Recovering after Home Assistant restarts
-- Periodically reconciling the desired state
-
-![Automation - Part 1](../Photos/automation/1.png)
-![Automation - Part 2](../Photos/automation/2.png)
-![Automation - Part 3](../Photos/automation/3.png)
-![Automation - Part 4](../Photos/automation/4.png)
+- Periodically reconciling desired state
 
 ---
 
@@ -226,11 +477,14 @@ and:
 
 **Effective Target**
 
-The calculated target is based purely on room temperature difference.
+The calculated target comes from room temperature imbalance.
 
-When the HVAC is actively heating or cooling:
+While HVAC is actively heating or cooling:
 
-`Effective Target = max(Calculated Target, 1)`
+```text
+Effective Target =
+max(Calculated Target, 1)
+```
 
 Examples:
 
@@ -243,9 +497,9 @@ Examples:
 | 4 | cooling | 4 |
 | 10 | heating | 10 |
 
-Therefore, Speed 1 is only a minimum airflow assistance level.
+Speed 1 is therefore only a minimum airflow-assistance level.
 
-A higher temperature-based target always takes priority.
+A higher temperature-derived target always has priority.
 
 ---
 
@@ -253,152 +507,272 @@ A higher temperature-based target always takes priority.
 
 When a booster needs to operate, commands are intentionally sent in this order:
 
-1. Set operating mode to `FAN`
+```text
+Set FAN mode
+     │
+     ▼
+Wait 1 second
+     │
+     ▼
+Set target percentage
+     │
+     ▼
+Wait 1 second
+     │
+     ▼
+Turn booster ON
+```
+
+In Home Assistant service terms:
+
+1. `fan.set_preset_mode`
 2. Wait 1 second
-3. Set target percentage
+3. `fan.set_percentage`
 4. Wait 1 second
-5. Turn the booster ON
+5. `fan.turn_on`
 
 Testing showed that the boosters accept mode and percentage commands while OFF.
 
-This is useful because Home Assistant can configure the desired speed before starting the fan.
+This allows the desired speed to be configured before starting the fan.
 
-It prevents the booster from briefly starting at a previously stored higher speed.
+When no airflow is required:
 
-When no airflow is required, Home Assistant sends a standard fan OFF command.
+```text
+fan.turn_off
+```
+
+is sent.
 
 ---
 
 # Central Blower Logic
 
-Central HVAC circulation is requested when either bedroom reaches:
+Central HVAC circulation is requested when **any bedroom** reaches:
 
-**Speed 4 or greater**
+> **Speed 4 or greater**
 
 With the current control curve, this corresponds to approximately:
 
-**2.0°F of directional temperature difference**
+> **2.0°F of directional temperature difference**
+
+Conceptually:
+
+```text
+Bed 1 >= S4
+      OR
+Bed 2 >= S4
+      OR
+Bed 3 >= S4
+       │
+       ▼
+Central Nest circulation
+```
 
 Therefore:
 
 | Condition | Result |
 |---|---|
-| Target 0 | No balancing |
+| Target 0 | No local balancing demand |
 | Effective S1 | HVAC-active minimum assistance |
-| Target S2 | Local booster only |
-| Target S4+ | Booster + central circulation |
+| Target S2 | Local bedroom booster only |
+| Target S4+ | Bedroom booster + central circulation |
 
-This allows small imbalances to be handled locally without unnecessarily running the central blower.
+This allows smaller imbalances to be handled locally without unnecessarily running the central blower.
+
+---
+
+# Nest Fan Timer
+
+Central circulation is requested using:
+
+```text
+nest.set_fan_timer
+```
+
+The current automation requests:
+
+```text
+12 hours
+```
+
+The 12-hour timer is used as a renewable circulation lease.
+
+It does **not** mean that the controller intentionally wants the blower to run continuously for 12 hours.
+
+While balancing demand exists, the hourly reconciliation refreshes the request.
+
+When balancing demand disappears, the automation explicitly cancels the independent fan request.
 
 ---
 
 # Central Blower Post-Run
 
-When both bedrooms fall below the threshold requiring central circulation, the blower is not immediately stopped.
+When all three bedroom targets fall below Speed 4, central circulation is not stopped immediately.
 
 The automation waits:
 
-**5 minutes**
+> **5 minutes**
 
-After the delay, the target sensors are checked again.
+After the delay, all three calculated target sensors are checked again.
 
-If both still remain below Speed 4, the independent Nest fan request is cancelled.
+Conceptually:
 
-If temperature demand returns during the delay, the automation restarts and the pending shutdown is cancelled.
+```text
+Bed 1 < S4
+   AND
+Bed 2 < S4
+   AND
+Bed 3 < S4
+    │
+    ▼
+Wait 5 minutes
+    │
+    ▼
+Re-check all 3 targets
+    │
+    ├── Demand returned
+    │       │
+    │       ▼
+    │   Keep blower
+    │
+    └── Still below S4
+            │
+            ▼
+       Cancel independent
+       Nest circulation
+```
 
-The automation therefore uses:
+The automation uses:
 
-`mode: restart`
+```text
+mode: restart
+```
 
----
+This is important.
 
-# Hysteresis
-
-The template controller uses approximately:
-
-**0.2°F hysteresis**
-
-This prevents small sensor fluctuations from repeatedly changing booster speeds around a threshold.
-
-Example:
-
-Speed 4 starts when the relevant difference reaches approximately:
-
-**2.0°F**
-
-but does not fall immediately when the temperature drops slightly below 2.0°F.
-
-It must fall to approximately:
-
-**1.8°F**
-
-before the controller reduces the level.
-
-The same principle is used for the other thresholds.
+If new demand appears during the five-minute delay, the automation restarts and cancels the pending shutdown.
 
 ---
 
 # Automation Triggers
 
-The automation runs when:
+The automation runs when any calculated bedroom target changes:
 
-### Calculated booster targets change
+```text
+sensor.bed_1_booster_target_speed
+sensor.bed_2_booster_target_speed
+sensor.bed_3_booster_target_speed
+```
 
-- `sensor.bed_1_booster_target_speed`
-- `sensor.bed_2_booster_target_speed`
+It also runs when the HVAC operating action changes:
 
-### HVAC operating action changes
-
-The automation monitors:
-
-`climate.kitchen`
+```text
+climate.kitchen
+```
 
 attribute:
 
-`hvac_action`
+```text
+hvac_action
+```
 
-This is necessary so that the boosters react immediately when heating or cooling starts or stops.
+This is required because starting or stopping active heating/cooling changes the minimum effective booster speed.
 
-### Home Assistant starts
+The automation also runs:
 
-The desired configuration is reapplied after a Home Assistant restart.
+- When Home Assistant starts
+- Once per hour
 
-### Hourly reconciliation
+---
 
-The desired state is also re-applied once per hour.
+# Hourly Desired-State Reconciliation
 
-This provides additional protection against:
+Once per hour, the automation re-applies the desired state.
+
+This provides protection against:
 
 - Missed Tuya commands
 - Temporary integration issues
 - Booster restarts
-- Stale state
+- Home Assistant restarts
+- Stale reported state
 - Nest fan timer expiration
+
+The controller does not wait for device feedback to determine the desired state.
+
+Instead:
+
+```text
+Calculate desired state
+        │
+        ▼
+Send desired state
+        │
+        ▼
+Repeat periodically
+```
 
 ---
 
 # Installing `templates.yaml`
 
-This repository stores only the templates required for this project.
+The repository stores only the templates required for this project.
 
-How they should be included depends on the existing Home Assistant configuration.
+The expected include structure is:
 
-For installations using:
+```yaml
+template: !include templates.yaml
+```
 
-`template: !include templates.yaml`
+When using that structure:
 
-merge the contents of the provided `templates.yaml` into the existing template configuration.
+> Do not add another `template:` key inside `templates.yaml`.
 
-Do not create duplicate template sensor definitions with the same `unique_id`.
+The provided file itself starts with:
 
-After installation, reload the Template Entities or restart Home Assistant.
+```yaml
+- sensor:
+```
 
-Confirm that the following entities exist:
+If an existing installation already has template entities, merge the provided sensor definitions carefully.
 
-- `sensor.bed_1_temperature_delta`
-- `sensor.bed_2_temperature_delta`
-- `sensor.bed_1_booster_target_speed`
-- `sensor.bed_2_booster_target_speed`
+Do not create duplicate definitions with the same:
+
+```text
+unique_id
+```
+
+After installation:
+
+1. Save the YAML
+2. Reload Template Entities if available
+3. Otherwise restart Home Assistant
+
+Then confirm that all nine calculated entities exist.
+
+### Temperature Delta
+
+```text
+sensor.bed_1_temperature_delta
+sensor.bed_2_temperature_delta
+sensor.bed_3_temperature_delta
+```
+
+### Target Speed
+
+```text
+sensor.bed_1_booster_target_speed
+sensor.bed_2_booster_target_speed
+sensor.bed_3_booster_target_speed
+```
+
+### Effective Percentage
+
+```text
+sensor.bed_1_booster_effective_percentage
+sensor.bed_2_booster_effective_percentage
+sensor.bed_3_booster_effective_percentage
+```
 
 ---
 
@@ -407,11 +781,12 @@ Confirm that the following entities exist:
 The automation can either be:
 
 - Added through the Home Assistant automation UI using **Edit in YAML**
-- Merged into an existing `automations.yaml` configuration
+- Merged into an existing `automations.yaml`
+- Included using the installation's existing automation include strategy
 
-Before enabling it, verify all entity IDs.
+Before enabling the automation, verify all entity IDs.
 
-The included configuration assumes:
+The provided v1.1 configuration assumes:
 
 | Function | Entity |
 |---|---|
@@ -419,92 +794,431 @@ The included configuration assumes:
 | Kitchen temperature | `sensor.kitchen_temp_temperature` |
 | Bed 1 temperature | `sensor.bed_1_temp_temperature` |
 | Bed 2 temperature | `sensor.bed_2_temp_temperature` |
+| Bed 3 temperature | `sensor.bed_3_temp_temperature` |
 | Bed 1 booster | `fan.bed_1_booster` |
 | Bed 2 booster | `fan.bed_2_booster` |
+| Bed 3 booster | `fan.bed_3_booster` |
 
-If your installation uses different entity IDs, update them before enabling the automation.
+If another installation uses different entity IDs, update them before enabling the automation.
+
+---
+
+# Installing Xtend Tuya
+
+Xtend Tuya must expose a usable `fan` entity for each booster.
+
+The automation relies primarily on:
+
+```text
+fan.set_preset_mode
+fan.set_percentage
+fan.turn_on
+fan.turn_off
+```
+
+The physical booster should accept:
+
+```text
+preset_mode: FAN
+```
+
+The controller does not require the reported Tuya speed state to be accurate.
+
+The `fan` entity is used to send commands.
 
 ---
 
 # Installing the Dashboard
 
-The included `dashboard.yaml` contains the monitoring card developed for this project.
+The included:
 
-It uses **ApexCharts Card**.
+```text
+dashboard.yaml
+```
 
-The dashboard is intended primarily for controller analysis and tuning.
+contains the monitoring and diagnostics configuration developed for this project.
 
-It displays:
+The dashboard is diagnostic only.
 
-- Bed 1 calculated booster target
-- Bed 2 calculated booster target
-- Bed 1 temperature delta
-- Bed 2 temperature delta
-- 24-hour historical behavior
-- ΔT zero reference
+It is **not required for the HVAC balancing automation to operate**.
 
-Because both bedrooms may have exactly the same booster target at the same time, the visual configuration intentionally differentiates the speed lines.
+---
 
-The dashboard is diagnostic only and is not required for controller operation.
+## ApexCharts Card
+
+Historical graphs require:
+
+> **ApexCharts Card**
+
+The dashboard uses ApexCharts to visualize:
+
+- Kitchen temperature
+- Bed 1 temperature
+- Bed 2 temperature
+- Bed 3 temperature
+- Temperature deltas
+- Calculated target speeds
+- Booster activity
+- Central Nest blower activity
+
+---
+
+## Multiple Entity Row
+
+The compact live-status card uses:
+
+> **Multiple Entity Row**
+
+This allows each bedroom to display multiple values on a single compact row.
+
+For example:
+
+```text
+Bedroom | Temperature | ΔT | Effective %
+```
+
+The current compact layout uses icons rather than bedroom names to reduce horizontal space.
+
+---
+
+# Dashboard Monitoring Structure
+
+The v1.1 dashboard is designed to expose several levels of controller behavior.
+
+## Temperature
+
+```text
+Kitchen
+Bed 1
+Bed 2
+Bed 3
+```
+
+## Temperature Imbalance
+
+```text
+Bed 1 ΔT
+Bed 2 ΔT
+Bed 3 ΔT
+```
+
+## Calculated Decision
+
+```text
+Bed 1 Target
+Bed 2 Target
+Bed 3 Target
+```
+
+## Effective Command
+
+```text
+Bed 1 Effective %
+Bed 2 Effective %
+Bed 3 Effective %
+```
+
+## Physical Device
+
+```text
+fan.bed_1_booster
+fan.bed_2_booster
+fan.bed_3_booster
+```
+
+This makes it possible to diagnose:
+
+```text
+Temperature
+     ↓
+Delta
+     ↓
+Target
+     ↓
+Effective Command
+     ↓
+Physical Booster
+```
 
 ---
 
 # Validation
 
-After installation, verify the system progressively.
+After installation, validate the system progressively.
 
-First verify temperature sensors and calculated deltas.
+Do not begin by testing the entire automation at once.
 
-Then verify that calculated target speeds follow the expected curve.
+---
 
-Next verify each booster manually.
+## Step 1 — Temperature Sensors
+
+Confirm:
+
+```text
+sensor.kitchen_temp_temperature
+sensor.bed_1_temp_temperature
+sensor.bed_2_temp_temperature
+sensor.bed_3_temp_temperature
+```
+
+all provide plausible values.
+
+---
+
+## Step 2 — Temperature Deltas
+
+Confirm:
+
+```text
+sensor.bed_1_temperature_delta
+sensor.bed_2_temperature_delta
+sensor.bed_3_temperature_delta
+```
+
+follow:
+
+```text
+Bedroom - Kitchen
+```
+
+For example:
+
+```text
+Kitchen = 72.0°F
+Bed 3   = 74.2°F
+
+Bed 3 ΔT = +2.2°F
+```
+
+---
+
+## Step 3 — Calculated Targets
+
+Verify the expected curve:
+
+```text
+< 1.5°F       → 0
+1.5 - <2.0°F  → 2
+2.0 - <2.5°F  → 4
+2.5 - <3.0°F  → 6
+3.0 - <3.5°F  → 8
+>= 3.5°F      → 10
+```
+
+---
+
+## Step 4 — HVAC Minimum Speed
+
+When:
+
+```text
+hvac_action = cooling
+```
+
+or:
+
+```text
+hvac_action = heating
+```
+
+a calculated target of:
+
+```text
+0
+```
+
+should produce an effective percentage of:
+
+```text
+10%
+```
+
+corresponding to:
+
+```text
+Speed 1
+```
+
+---
+
+## Step 5 — Booster Operation
+
+Each booster should independently follow its effective target.
 
 Expected command behavior:
 
-- `fan.set_preset_mode`
-- `fan.set_percentage`
-- `fan.turn_on`
-- `fan.turn_off`
+```text
+FAN mode
+   ↓
+percentage
+   ↓
+ON
+```
 
-Finally verify central blower control.
-
-The expected overall behavior is:
+When target becomes zero while HVAC is not active:
 
 ```text
-ΔT < 1.5°F
-    ↓
-No temperature-balancing demand
+OFF
+```
 
-ΔT >= 1.5°F
-    ↓
+---
+
+## Step 6 — Central Blower
+
+Verify that any bedroom reaching:
+
+```text
+Target >= 4
+```
+
+can request central Nest circulation.
+
+For example:
+
+```text
+Bed 1 = 0
+Bed 2 = 2
+Bed 3 = 4
+```
+
+should result in:
+
+```text
+Central circulation requested
+```
+
+---
+
+## Step 7 — Five-Minute Post-Circulation
+
+When all three targets become:
+
+```text
+< 4
+```
+
+the independent Nest fan request should remain active for approximately:
+
+```text
+5 minutes
+```
+
+before being cancelled.
+
+If any bedroom returns to:
+
+```text
+>= 4
+```
+
+during that period, the pending shutdown should be cancelled.
+
+---
+
+# Expected Overall Behavior
+
+During summer cooling:
+
+```text
+Directional Error < 1.5°F
+        │
+        ▼
+No temperature-derived balancing demand
+```
+
+If HVAC is idle:
+
+```text
+Target 0
+   ↓
+Booster OFF
+```
+
+If HVAC is actively cooling:
+
+```text
+Target 0
+   +
+HVAC Active
+   ↓
+Speed 1
+```
+
+At:
+
+```text
+1.5°F
+```
+
+the bedroom receives:
+
+```text
 Local booster Speed 2
+```
 
-ΔT >= 2.0°F
-    ↓
+At:
+
+```text
+2.0°F
+```
+
+the bedroom receives:
+
+```text
 Booster Speed 4
-+
+       +
 Central circulation
+```
 
-Increasing ΔT
-    ↓
+Higher imbalance produces:
+
+```text
 S6 → S8 → S10
 ```
 
-When the HVAC itself is actively heating or cooling:
+---
+
+# v1.1 Behavior Summary
+
+All three bedrooms are treated identically.
 
 ```text
-Calculated Target = 0
-        +
-HVAC Active
-        ↓
-Effective Target = Speed 1
+Bed 1
+Temperature → Delta → Target → Effective % → Booster
+
+Bed 2
+Temperature → Delta → Target → Effective % → Booster
+
+Bed 3
+Temperature → Delta → Target → Effective % → Booster
 ```
+
+Central circulation is shared:
+
+```text
+Any Bedroom Target >= 4
+           │
+           ▼
+     Central Blower
+```
+
+Central circulation stops only when:
+
+```text
+Bed 1 < 4
+   AND
+Bed 2 < 4
+   AND
+Bed 3 < 4
+```
+
+for the required post-circulation period.
 
 ---
 
 # Important Notes
 
-The configuration in this repository is tuned for a specific house, HVAC system and duct layout.
+The configuration in this repository is tuned for a specific house, HVAC system, duct layout, and climate.
 
 The thresholds should not automatically be considered ideal for another home.
 
@@ -521,7 +1235,30 @@ Different installations may require adjustments based on:
 - Solar exposure
 - Climate
 
-The dashboard is particularly useful for making these adjustments based on actual data.
+The monitoring dashboard is particularly useful for making these adjustments based on actual historical behavior.
+
+---
+
+# Winter / Heating
+
+The template architecture already contains directional heating logic.
+
+However, the current controller has been tuned primarily during summer operation.
+
+Winter testing remains a future phase.
+
+The basement temperature sensor previously used during early system observation has been moved to Bed 3 for v1.1.
+
+Therefore, future basement balancing will require dedicated basement temperature monitoring to be established again.
+
+Possible future work includes:
+
+- Basement temperature sensor
+- Basement register booster
+- Heating-specific speed curve
+- Heating-specific blower strategy
+- Winter energy analysis
+- Seasonal controller profiles
 
 ---
 
@@ -535,25 +1272,24 @@ Do not close large numbers of supply registers in an attempt to force airflow to
 
 Ensure that return-air paths remain adequate.
 
-If system static pressure, airflow requirements or equipment limitations are unknown, consult a qualified HVAC professional.
+HVAC systems differ in:
+
+- Blower capacity
+- Static pressure
+- Duct design
+- Equipment requirements
+- Available airflow
+
+If system static pressure, airflow requirements, or equipment limitations are unknown, consult a qualified HVAC professional.
 
 ---
 
 # Files
 
-- [`templates.yaml`](templates.yaml) — temperature and target calculations
-- [`automation.yaml`](automation.yaml) — active balancing controller
-- [`dashboard.yaml`](dashboard.yaml) — monitoring and tuning interface
+- [`templates.yaml`](templates.yaml) — temperature delta, target-speed, and effective-percentage calculations
+- [`automation.yaml`](automation.yaml) — three-bedroom active balancing controller
+- [`dashboard.yaml`](dashboard.yaml) — monitoring, diagnostics, and tuning interface
 
-For the complete project description, return to the [main README](../README.md).
-```
+For the complete project description, return to the:
 
-### Próximos três arquivos
-
-Agora temos uma separação boa:
-
-**`README.md` principal** → explica a solução.  
-**`HomeAssistant/README.md`** → explica como instalar e como os componentes se relacionam.  
-**YAML** → contém o código real.
-
-O próximo passo é gerar, nesta ordem, `HomeAssistant/templates.yaml`, `HomeAssistant/automation.yaml` e `HomeAssistant/dashboard.yaml`, usando **exatamente a versão que está funcionando hoje**, sem voltar para nenhuma das curvas antigas que testamos durante o desenvolvimento. 
+[Main Project README](../README.md)

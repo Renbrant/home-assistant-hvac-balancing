@@ -9,657 +9,534 @@ sections:
         icon: mdi:home-thermometer
       - type: entities
         show_header_toggle: false
+        grid_options:
+          columns: 10
+          rows: auto
         entities:
           - entity: climate.kitchen
-            icon: mdi:hvac
             name: AC
-        grid_options:
-          columns: 6
-          rows: auto
-      - type: entities
-        show_header_toggle: false
-        entities:
-          - entity: sensor.kitchen_temp_temperature
-            name: Kitchen
+            icon: mdi:hvac
           - type: divider
-          - entity: sensor.bed_1_temp_temperature
-            name: Bed 1
-          - entity: sensor.bed_1_temperature_delta
-            name: Bed 1 ΔT
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_temp_temperature
+            name: Temperature
+            icon: mdi:thermometer
+            show_state_first: true
+            state_header: Bed 1
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_temp_temperature
+                name: Bed 2
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_temp_temperature
+                name: Bed 3
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_temperature_delta
+            name: Delta
             icon: mdi:delta
-          - entity: sensor.bed_1_booster_target_speed
-            name: Bed 1 Target
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_temperature_delta
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_temperature_delta
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_target_speed
+            name: Base P
             icon: mdi:fan-speed-1
-          - entity: sensor.bed_1_booster_effective_percentage
-            name: Bed 1 Effective
-            icon: mdi:fan-chevron-up
-          - entity: fan.bed_1_booster
-            name: Bed 1 Booster
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_target_speed
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_target_speed
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_adaptive_boost
+            name: Adaptive I
+            icon: mdi:fan-plus
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_adaptive_boost
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_adaptive_boost
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_adaptive_boost
+            attribute: reference_error
+            name: Ref 20m
+            icon: mdi:history
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_adaptive_boost
+                attribute: reference_error
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_adaptive_boost
+                attribute: reference_error
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_adaptive_boost
+            attribute: last_evaluation
+            name: Last Eval
+            icon: mdi:clock-outline
+            show_state_first: true
+            format: time
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_adaptive_boost
+                attribute: last_evaluation
+                name: false
+                format: time
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_adaptive_boost
+                attribute: last_evaluation
+                name: false
+                format: time
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_pi_target_speed
+            name: PI Target
+            icon: mdi:fan-auto
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_pi_target_speed
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_pi_target_speed
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+          - type: custom:multiple-entity-row
+            entity: sensor.bed_1_booster_effective_percentage
+            name: Fan
+            icon: mdi:fan
+            show_state_first: true
+            styles:
+              width: 55px
+              text-align: center
+            entities:
+              - entity: sensor.bed_2_booster_effective_percentage
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+              - entity: sensor.bed_3_booster_effective_percentage
+                name: false
+                styles:
+                  width: 55px
+                  text-align: center
+        card_mod:
+          style: |
+            ha-card {
+              background: transparent !important;
+              --ha-card-background: transparent !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+      - type: custom:plotly-graph
+        hours_to_show: 80h
+        refresh_interval: auto
+        autorange_after_scroll: true
         grid_options:
-          columns: 6
+          columns: 25
           rows: auto
-      - type: entities
-        show_header_toggle: false
-        entities:
-          - entity: sensor.kitchen_temp_temperature
-            name: Kitchen
-          - type: divider
-          - entity: sensor.bed_2_temp_temperature
-            name: Bed 2
-          - entity: sensor.bed_2_temperature_delta
-            name: Bed 2 ΔT
-            icon: mdi:delta
-          - entity: sensor.bed_2_booster_target_speed
-            name: Bed 2 Target
-            icon: mdi:fan-speed-1
-          - entity: sensor.bed_2_booster_effective_percentage
-            name: Bed 2 Effective
-            icon: mdi:fan-chevron-up
-          - entity: fan.bed_2_booster
-            name: Bed 2 Booster
-        grid_options:
-          columns: 6
-          rows: auto
-      - type: entities
-        show_header_toggle: false
-        entities:
-          - entity: sensor.kitchen_temp_temperature
-            name: Kitchen
-          - type: divider
-          - entity: sensor.bed_3_temp_temperature
-            name: Bed 3
-          - entity: sensor.bed_3_temperature_delta
-            name: Bed 3 ΔT
-            icon: mdi:delta
-          - entity: sensor.bed_3_booster_target_speed
-            name: Bed 3 Target
-            icon: mdi:fan-speed-1
-          - entity: sensor.bed_3_booster_effective_percentage
-            name: Bed 3 Effective
-            icon: mdi:fan-chevron-up
-          - entity: fan.bed_3_booster
-            name: Bed 3 Booster
-        grid_options:
-          columns: 6
-          rows: auto
-    column_span: 3
-  - type: grid
-    cards:
-      - type: heading
-        heading: Temperature Balance
-        icon: mdi:chart-line
-      - type: custom:apexcharts-card
-        graph_span: 48h
-        header:
-          show: true
-          title: Kitchen vs Bedrooms
-          show_states: true
-          colorize_states: true
-        now:
-          show: true
-          label: Now
-        all_series_config:
-          type: line
-          curve: smooth
-          stroke_width: 2
-          extend_to: now
-        yaxis:
-          - id: temperature
-            min: 65
-            max: 85
-            decimals: 0
-            apex_config:
-              tickAmount: 20
-              title:
-                text: °F
-          - id: delta
-            opposite: true
-            min: -5
-            max: 5
-            decimals: 1
-            apex_config:
-              tickAmount: 10
-              title:
-                text: ΔT °F
-        series:
-          - entity: sensor.kitchen_temp_temperature
-            name: Kitchen
-            yaxis_id: temperature
-            color: red
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_1_temp_temperature
-            name: Bed 1
-            yaxis_id: temperature
-            color: yellow
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_2_temp_temperature
-            name: Bed 2
-            yaxis_id: temperature
-            color: orange
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_3_temp_temperature
-            name: Bed 3
-            yaxis_id: temperature
-            color: lime
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_1_temperature_delta
-            name: Bed 1 ΔT
-            yaxis_id: delta
-            color: yellow
-            stroke_width: 1
-            opacity: 0.4
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_2_temperature_delta
-            name: Bed 2 ΔT
-            yaxis_id: delta
-            color: orange
-            stroke_width: 1
-            opacity: 0.4
-            group_by:
-              func: avg
-              duration: 10min
-          - entity: sensor.bed_3_temperature_delta
-            name: Bed 3 ΔT
-            yaxis_id: delta
-            color: lime
-            stroke_width: 1
-            opacity: 0.4
-            group_by:
-              func: avg
-              duration: 10min
-        apex_config:
-          chart:
-            height: 380px
+        config:
+          displayModeBar: false
+          scrollZoom: false
+          responsive: true
+        layout:
+          autosize: true
+          height: 820
+          paper_bgcolor: rgba(0,0,0,0)
+          plot_bgcolor: rgba(0,0,0,0)
+          hovermode: x unified
+          font:
+            size: 13
+          margin:
+            l: 75
+            r: 190
+            t: 20
+            b: 60
+          xaxis:
+            type: date
+            autorange: true
+            fixedrange: true
+            showgrid: true
+            zeroline: false
+            nticks: 14
+            ticks: outside
+            automargin: true
+            tickfont:
+              size: 12
+          yaxis:
+            domain:
+              - 0
+              - 0.205
+            anchor: x
+            side: left
+            range:
+              - 0
+              - 100
+            fixedrange: true
+            automargin: true
+            visible: true
+            showticklabels: true
+            ticks: outside
+            tickvals:
+              - 0
+              - 20
+              - 40
+              - 60
+              - 80
+              - 100
+            ticksuffix: '%'
+            tickfont:
+              size: 12
+            title:
+              text: Fan (%)
+              standoff: 8
+              font:
+                size: 14
+            showgrid: true
+            zeroline: true
+            tickformat: .0f
+          yaxis2:
+            domain:
+              - 0.265
+              - 0.47
+            anchor: x
+            side: left
+            overlaying: false
+            autorange: true
+            fixedrange: true
+            automargin: true
+            visible: true
+            showticklabels: true
+            ticks: outside
+            nticks: 5
+            tickfont:
+              size: 12
+            title:
+              text: ΔT
+              standoff: 8
+              font:
+                size: 14
+            showgrid: true
+            zeroline: true
+            tickformat: .0f
+          yaxis3:
+            domain:
+              - 0.53
+              - 0.735
+            anchor: x
+            side: left
+            overlaying: false
+            autorange: true
+            fixedrange: true
+            automargin: true
+            visible: true
+            showticklabels: true
+            ticks: outside
+            nticks: 5
+            tickfont:
+              size: 12
+            title:
+              text: °F
+              standoff: 8
+              font:
+                size: 14
+            showgrid: true
+            zeroline: false
+            tickformat: .0f
+          yaxis4:
+            domain:
+              - 0.795
+              - 1
+            anchor: x
+            side: left
+            overlaying: false
+            autorange: true
+            rangemode: tozero
+            fixedrange: true
+            automargin: true
+            visible: true
+            showticklabels: true
+            ticks: outside
+            nticks: 5
+            tickfont:
+              size: 12
+            title:
+              text: W
+              standoff: 8
+              font:
+                size: 14
+            showgrid: true
+            zeroline: true
+            tickformat: ~s
           legend:
-            show: true
-          markers:
-            size: 0
-          stroke:
-            lineCap: round
-        grid_options:
-          columns: 20
-          rows: auto
-    column_span: 3
-  - type: grid
-    columns: 1
-    square: false
-    cards:
-      - type: heading
-        heading: Booster Controller
-        icon: mdi:fan-auto
-      - type: custom:apexcharts-card
-        graph_span: 24h
-        stacked: false
-        header:
-          show: true
-          title: Booster Speed vs Temperature Delta
-          show_states: true
-          colorize_states: true
-        now:
-          show: true
-          label: Now
-        yaxis:
-          - id: speed
-            min: 0
-            max: 10
-            decimals: 0
-            apex_config:
-              tickAmount: 10
-              title:
-                text: Speed
-          - id: delta
-            opposite: true
-            min: -5
-            max: 5
-            decimals: 1
-            apex_config:
-              tickAmount: 10
-              title:
-                text: ΔT °F
-        series:
-          - entity: sensor.bed_1_booster_target_speed
-            name: Bed 1 Speed
-            yaxis_id: speed
-            color: yellow
-            type: line
-            curve: stepline
-            stroke_width: 1
-            stroke_dash: 0
-            opacity: 1
-            float_precision: 0
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              if (!Number.isFinite(value)) return null;
-
-              // Keep Speed 0 inside the graph.
-              return value > 0 ? value - 0.18 : value;
-          - entity: sensor.bed_1_temperature_delta
-            name: Bed 1 ΔT
-            yaxis_id: delta
-            color: yellow
-            type: line
-            curve: smooth
-            stroke_width: 1
-            opacity: 0.4
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-          - entity: sensor.bed_2_booster_target_speed
-            name: Bed 2 Speed
-            yaxis_id: speed
-            color: orange
-            type: line
-            curve: stepline
-            stroke_width: 1
-            stroke_dash: 0
-            opacity: 1
-            float_precision: 0
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-          - entity: sensor.bed_2_temperature_delta
-            name: Bed 2 ΔT
-            yaxis_id: delta
-            color: orange
-            type: line
-            curve: smooth
-            stroke_width: 1
-            opacity: 0.4
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-          - entity: sensor.bed_3_booster_target_speed
-            name: Bed 3 Speed
-            yaxis_id: speed
-            color: lime
-            type: line
-            curve: stepline
-            stroke_width: 1
-            stroke_dash: 0
-            opacity: 1
-            float_precision: 0
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              if (!Number.isFinite(value)) return null;
-
-              // Keep Speed 10 inside the graph.
-              return value < 10 ? value + 0.18 : value;
-          - entity: sensor.bed_3_temperature_delta
-            name: Bed 3 ΔT
-            yaxis_id: delta
-            color: lime
-            type: line
-            curve: smooth
-            stroke_width: 1
-            opacity: 0.4
-            extend_to: now
-            show:
-              in_header: raw
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-        apex_config:
-          chart:
-            height: 380px
-          legend:
-            show: true
-          markers:
-            size: 0
-          stroke:
-            lineCap: round
-          grid:
-            show: true
-          annotations:
-            yaxis:
-              - 'true': 0
-                yAxisIndex: 1
-                borderColor: white
-                strokeDashArray: 0
-                label:
-                  show: false
-        grid_options:
-          columns: full
-          rows: 10
-    column_span: 3
-  - type: grid
-    cards:
-      - type: heading
-        heading: Airflow Activity
-        icon: mdi:air-filter
-      - type: custom:apexcharts-card
-        graph_span: 24h
-        header:
-          show: true
-          title: Boosters and Nest Blower
-          show_states: false
-        now:
-          show: true
-          label: Now
-        yaxis:
-          - min: 0
-            max: 7
-            decimals: 0
-            apex_config:
-              tickAmount: 7
-              labels:
-                formatter: |
-                  EVAL:function(value) {
-                    const labels = {
-                      0: "Bed 1 OFF",
-                      1: "Bed 1 ON",
-                      2: "Bed 2 OFF",
-                      3: "Bed 2 ON",
-                      4: "Bed 3 OFF",
-                      5: "Bed 3 ON",
-                      6: "Nest OFF",
-                      7: "Nest ON"
-                    };
-                    return labels[Math.round(value)] || "";
-                  }
-        all_series_config:
-          type: line
-          curve: stepline
-          stroke_width: 3
-          extend_to: now
-        series:
-          - entity: fan.bed_1_booster
-            name: Bed 1 Booster
-            color: yellow
-            transform: |
-              return x === "on" ? 1 : 0;
-          - entity: fan.bed_2_booster
-            name: Bed 2 Booster
-            color: orange
-            transform: |
-              return x === "on" ? 3 : 2;
-          - entity: fan.bed_3_booster
-            name: Bed 3 Booster
-            color: lime
-            transform: |
-              return x === "on" ? 5 : 4;
+            title:
+              text: HVAC Power
+              font:
+                size: 14
+            orientation: v
+            x: 1.055
+            'y': 1
+            xanchor: left
+            yanchor: top
+            font:
+              size: 12
+            tracegroupgap: 5
+          legend2:
+            title:
+              text: Temperatures
+              font:
+                size: 14
+            orientation: v
+            x: 1.055
+            'y': 0.735
+            xanchor: left
+            yanchor: top
+            font:
+              size: 12
+            tracegroupgap: 5
+          legend3:
+            title:
+              text: Delta temp
+              font:
+                size: 14
+            orientation: v
+            x: 1.055
+            'y': 0.47
+            xanchor: left
+            yanchor: top
+            font:
+              size: 12
+            tracegroupgap: 5
+          legend4:
+            title:
+              text: Fan speed
+              font:
+                size: 14
+            orientation: v
+            x: 1.055
+            'y': 0.205
+            xanchor: left
+            yanchor: top
+            font:
+              size: 12
+            tracegroupgap: 5
+        entities:
+          - entity: sensor.ac_power_total
+            name: AC
+            yaxis: y4
+            legend: legend
+            mode: lines
+            line:
+              width: 1.5
+              color: '#42A5F5'
+              shape: hv
+            fill: tozeroy
+            fillcolor: rgba(66,165,245,0.18)
+          - entity: sensor.furnace_power_total
+            name: Airflow
+            yaxis: y4
+            legend: legend
+            mode: lines
+            line:
+              width: 2
+              color: '#B0BEC5'
+              shape: hv
+            fill: tozeroy
+            fillcolor: rgba(176,190,197,0.10)
+          - entity: sensor.kitchen_temperature
+            name: AC Temp
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1.7
+              color: '#4285F4'
+              shape: linear
           - entity: climate.kitchen
-            attribute: fan_mode
-            name: Nest Blower
-            color: cyan
-            transform: |
-              return x === "on" ? 7 : 6;
-        apex_config:
-          chart:
-            height: 320px
-          legend:
-            show: true
-          markers:
-            size: 0
-        grid_options:
-          columns: full
-          rows: auto
-  - type: grid
-    cards:
-      - type: heading
-        heading: Xtend Tuya Raw Feedback
-        icon: mdi:bug-outline
-      - type: entities
-        title: Raw Device Feedback
-        show_header_toggle: false
-        entities:
-          - type: section
-            label: Bed 1
-          - entity: fan.bed_1_booster
-            name: Fan State
-          - entity: switch.bed_1_booster_power
-            name: Power DP
-          - entity: select.bed_1_booster_speed
-            name: Reported Speed DP
-          - type: attribute
-            entity: fan.bed_1_booster
-            attribute: percentage
-            name: Fan Percentage
-          - entity: select.bed_1_booster_mode
-            name: Reported Mode DP
-          - type: attribute
-            entity: fan.bed_1_booster
-            attribute: preset_mode
-            name: Fan Preset Mode
-          - type: divider
-          - type: section
-            label: Bed 2
-          - entity: fan.bed_2_booster
-            name: Fan State
-          - entity: switch.bed_2_booster_power
-            name: Power DP
-          - entity: select.bed_2_booster_speed
-            name: Reported Speed DP
-          - type: attribute
-            entity: fan.bed_2_booster
-            attribute: percentage
-            name: Fan Percentage
-          - entity: select.bed_2_booster_mode
-            name: Reported Mode DP
-          - type: attribute
-            entity: fan.bed_2_booster
-            attribute: preset_mode
-            name: Fan Preset Mode
-          - type: divider
-          - type: section
-            label: Bed 3
-          - entity: fan.bed_3_booster
-            name: Fan State
-          - entity: switch.bed_3_booster_power
-            name: Power DP
-          - type: attribute
-            entity: fan.bed_3_booster
-            attribute: percentage
-            name: Fan Percentage
-          - entity: select.bed_3_booster_mode
-            name: Reported Mode DP
-          - type: attribute
-            entity: fan.bed_3_booster
-            attribute: preset_mode
-            name: Fan Preset Mode
-        grid_options:
-          columns: full
-          rows: auto
-  - type: grid
-    cards:
-      - type: heading
-        heading: Bed 1 Feedback Diagnostics
-        icon: mdi:chart-timeline-variant
-      - type: custom:apexcharts-card
-        graph_span: 24h
-        header:
-          show: true
-          title: Bed 1 - Command vs Raw Feedback
-          show_states: true
-          colorize_states: true
-        now:
-          show: true
-          label: Now
-        yaxis:
-          - min: 0
-            max: 10
-            decimals: 0
-            apex_config:
-              tickAmount: 10
-              title:
-                text: Speed
-        all_series_config:
-          type: line
-          curve: stepline
-          stroke_width: 2
-          extend_to: now
-        series:
-          - entity: sensor.bed_1_booster_target_speed
-            name: Calculated Target
-            color: yellow
+            attribute: temperature
+            name: Target
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1
+              color: grey
+              shape: hv
+              dash: dot
+          - entity: sensor.kitchen_temp_temperature
+            name: Kitchen
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1.7
+              color: red
+              shape: linear
+          - entity: sensor.bed_1_temp_temperature
+            name: Bed 1
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1.7
+              color: yellow
+              shape: linear
+          - entity: sensor.bed_2_temp_temperature
+            name: Bed 2
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1.7
+              color: orange
+              shape: linear
+          - entity: sensor.bed_3_temp_temperature
+            name: Bed 3
+            yaxis: y3
+            legend: legend2
+            mode: lines
+            line:
+              width: 1.7
+              color: green
+              shape: linear
+          - entity: sensor.bed_1_temperature_delta
+            name: Bed 1
+            yaxis: y2
+            legend: legend3
+            mode: lines
+            line:
+              width: 1.7
+              color: yellow
+              shape: linear
+          - entity: sensor.bed_2_temperature_delta
+            name: Bed 2
+            yaxis: y2
+            legend: legend3
+            mode: lines
+            line:
+              width: 1.7
+              color: orange
+              shape: linear
+          - entity: sensor.bed_3_temperature_delta
+            name: Bed 3
+            yaxis: y2
+            legend: legend3
+            mode: lines
+            line:
+              width: 1.7
+              color: green
+              shape: linear
           - entity: sensor.bed_1_booster_effective_percentage
-            name: Effective Command
-            color: magenta
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-          - entity: select.bed_1_booster_speed
-            name: Reported Speed DP
-            color: red
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-          - entity: fan.bed_1_booster
-            attribute: percentage
-            name: Fan Percentage / 10
-            color: cyan
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-        apex_config:
-          chart:
-            height: 320px
-          legend:
-            show: true
-          markers:
-            size: 0
-        grid_options:
-          columns: full
-          rows: auto
-  - type: grid
-    cards:
-      - type: heading
-        heading: Bed 2 Feedback Diagnostics
-        icon: mdi:chart-timeline-variant
-      - type: custom:apexcharts-card
-        graph_span: 24h
-        header:
-          show: true
-          title: Bed 2 - Command vs Raw Feedback
-          show_states: true
-          colorize_states: true
-        now:
-          show: true
-          label: Now
-        yaxis:
-          - min: 0
-            max: 10
-            decimals: 0
-            apex_config:
-              tickAmount: 10
-              title:
-                text: Speed
-        all_series_config:
-          type: line
-          curve: stepline
-          stroke_width: 2
-          extend_to: now
-        series:
-          - entity: sensor.bed_2_booster_target_speed
-            name: Calculated Target
-            color: orange
+            name: Bed 1
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 2
+              color: yellow
+              shape: hv
           - entity: sensor.bed_2_booster_effective_percentage
-            name: Effective Command
-            color: magenta
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-          - entity: select.bed_2_booster_speed
-            name: Reported Speed DP
-            color: red
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value : null;
-          - entity: fan.bed_2_booster
-            attribute: percentage
-            name: Fan Percentage / 10
-            color: cyan
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-        apex_config:
-          chart:
-            height: 320px
-          legend:
-            show: true
-          markers:
-            size: 0
-        grid_options:
-          columns: full
-          rows: auto
-  - type: grid
-    cards:
-      - type: heading
-        heading: Bed 3 Feedback Diagnostics
-        icon: mdi:chart-timeline-variant
-      - type: custom:apexcharts-card
-        graph_span: 24h
-        header:
-          show: true
-          title: Bed 3 - Command vs Raw Feedback
-          show_states: true
-          colorize_states: true
-        now:
-          show: true
-          label: Now
-        yaxis:
-          - min: 0
-            max: 10
-            decimals: 0
-            apex_config:
-              tickAmount: 10
-              title:
-                text: Speed
-        all_series_config:
-          type: line
-          curve: stepline
-          stroke_width: 2
-          extend_to: now
-        series:
-          - entity: sensor.bed_3_booster_target_speed
-            name: Calculated Target
-            color: lime
+            name: Bed 2
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 2
+              color: orange
+              shape: hv
           - entity: sensor.bed_3_booster_effective_percentage
-            name: Effective Command
-            color: magenta
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-          - entity: fan.bed_3_booster
-            attribute: percentage
-            name: Fan Percentage / 10
-            color: cyan
-            transform: |
-              const value = Number(x);
-              return Number.isFinite(value) ? value / 10 : null;
-        apex_config:
-          chart:
-            height: 320px
-          legend:
-            show: true
-          markers:
-            size: 0
-        grid_options:
-          columns: full
-          rows: auto
+            name: Bed 3
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 2
+              color: green
+              shape: hv
+        card_mod:
+          style: |
+            ha-card {
+              height: 830px !important;
+              overflow: hidden !important;
+            }
+    column_span: 3
 cards: []
-title: HVAC Boost v1.1
+title: HVAC Boost v1.3 PI-Lite
+background:
+  opacity: 33
+  alignment: center
+  size: cover
+  repeat: repeat
+  attachment: fixed
+  image:
+    media_content_id: >-
+      media-source://media_source/local/Dark-Black-Background-Wallpaper-HD-40752.jpg
+    media_content_type: image/jpeg
+    metadata:
+      title: Dark-Black-Background-Wallpaper-HD-40752.jpg
+      thumbnail: null
+      media_class: image
+      children_media_class: null
+      navigateIds:
+        - {}
+        - media_content_type: app
+          media_content_id: media-source://media_source

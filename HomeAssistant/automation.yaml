@@ -1,21 +1,26 @@
 alias: HVAC - Smart Bedroom Booster Control
 description: >
-  Controls Bed 1, Bed 2 and Bed 3 register booster fans based on calculated
-  temperature-delta target speeds. When the HVAC is actively heating or cooling,
-  all three boosters run at a minimum of Speed 1 to assist airflow. Higher
-  calculated target speeds always take priority. Central Nest circulation is
-  requested when any bedroom reaches Speed 4 or higher, corresponding to
-  approximately 2.0°F of temperature imbalance. Xtend Tuya fan feedback may
-  remain stale, so commands are sent using the native fan entities.
+  Controls Bed 1, Bed 2 and Bed 3 register booster fans using active PI-lite
+  thermal balancing. Bedroom boosters continue balancing while the thermostat is
+  in COOL or HEAT mode even when the compressor/furnace is idle. The original
+  temperature-delta target speed provides proportional demand, while the
+  adaptive controller can progressively increase fan speed when the bedroom
+  imbalance does not improve sufficiently over approximately 20-minute
+  intervals. When HVAC is actively heating or cooling, all boosters run at a
+  minimum of Speed 1. Nest circulation is a second-stage assist and is requested
+  only when any final PI target reaches Speed 8 or higher. Xtend Tuya feedback
+  may remain stale, so commands are sent using the native fan entities.
 triggers:
   - trigger: state
     entity_id:
-      - sensor.bed_1_booster_target_speed
-      - sensor.bed_2_booster_target_speed
-      - sensor.bed_3_booster_target_speed
+      - sensor.bed_1_booster_pi_target_speed
+      - sensor.bed_2_booster_pi_target_speed
+      - sensor.bed_3_booster_pi_target_speed
   - trigger: state
     entity_id: climate.kitchen
     attribute: hvac_action
+  - trigger: state
+    entity_id: climate.kitchen
   - trigger: time_pattern
     hours: /1
   - trigger: homeassistant
@@ -24,37 +29,34 @@ conditions: []
 actions:
   - variables:
       bed_1_target: |
-        {% set base =
-          states('sensor.bed_1_booster_target_speed') | int(0)
+        {% set target =
+          states('sensor.bed_1_booster_pi_target_speed') | int(0)
         %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% if action in ['cooling', 'heating'] %}
-          {{ [base, 1] | max }}
+        %} {% if action in ['cooling', 'heating'] %}
+          {{ [target, 1] | max }}
         {% else %}
-          {{ base }}
+          {{ target }}
         {% endif %}
       bed_2_target: |
-        {% set base =
-          states('sensor.bed_2_booster_target_speed') | int(0)
+        {% set target =
+          states('sensor.bed_2_booster_pi_target_speed') | int(0)
         %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% if action in ['cooling', 'heating'] %}
-          {{ [base, 1] | max }}
+        %} {% if action in ['cooling', 'heating'] %}
+          {{ [target, 1] | max }}
         {% else %}
-          {{ base }}
+          {{ target }}
         {% endif %}
       bed_3_target: |
-        {% set base =
-          states('sensor.bed_3_booster_target_speed') | int(0)
+        {% set target =
+          states('sensor.bed_3_booster_pi_target_speed') | int(0)
         %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% if action in ['cooling', 'heating'] %}
-          {{ [base, 1] | max }}
+        %} {% if action in ['cooling', 'heating'] %}
+          {{ [target, 1] | max }}
         {% else %}
-          {{ base }}
+          {{ target }}
         {% endif %}
   - choose:
       - conditions:
@@ -139,11 +141,11 @@ actions:
           - condition: template
             value_template: |
               {{
-                bed_1_target | int >= 4
+                bed_1_target | int >= 8
                 or
-                bed_2_target | int >= 4
+                bed_2_target | int >= 8
                 or
-                bed_3_target | int >= 4
+                bed_3_target | int >= 8
               }}
         sequence:
           - action: nest.set_fan_timer
@@ -157,11 +159,11 @@ actions:
       - condition: template
         value_template: |
           {{
-            states('sensor.bed_1_booster_target_speed') | int(0) < 4
+            states('sensor.bed_1_booster_pi_target_speed') | int(0) < 8
             and
-            states('sensor.bed_2_booster_target_speed') | int(0) < 4
+            states('sensor.bed_2_booster_pi_target_speed') | int(0) < 8
             and
-            states('sensor.bed_3_booster_target_speed') | int(0) < 4
+            states('sensor.bed_3_booster_pi_target_speed') | int(0) < 8
           }}
       - action: climate.set_fan_mode
         target:

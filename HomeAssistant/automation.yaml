@@ -1,428 +1,171 @@
-# ==============================================================
-# HOME ASSISTANT HVAC BALANCING
-# Main Automation
-#
-# Automation:
-# HVAC - Smart Bedroom Booster Control
-#
-# Responsibilities:
-#
-# - Read calculated booster targets
-# - Apply minimum Speed 1 while HVAC is actively heating/cooling
-# - Control Bed 1 booster
-# - Control Bed 2 booster
-# - Request central Nest circulation from Speed 4 upward
-# - Keep central circulation running for 5 minutes after demand
-# - Recover after Home Assistant restart
-# - Periodically reconcile desired state
-#
-# NOTE:
-# Booster feedback from Xtend Tuya may remain stale.
-# This automation therefore follows a desired-state model and
-# explicitly sends the required mode, speed and power commands.
-# ==============================================================
-
-
 alias: HVAC - Smart Bedroom Booster Control
-
 description: >
-  Controls Bed 1 and Bed 2 register booster fans based on calculated
-  temperature-delta target speeds. When the HVAC is actively heating
-  or cooling, both boosters run at a minimum of Speed 1 to assist
-  airflow. Higher calculated target speeds always take priority.
-  Central Nest circulation is requested when either bedroom reaches
-  Speed 4 or higher. Xtend Tuya device feedback may remain stale,
-  so the automation explicitly applies the desired fan state.
-
-
-# ==============================================================
-# TRIGGERS
-# ==============================================================
-
+  Controls Bed 1, Bed 2 and Bed 3 register booster fans based on calculated
+  temperature-delta target speeds. When the HVAC is actively heating or cooling,
+  all three boosters run at a minimum of Speed 1 to assist airflow. Higher
+  calculated target speeds always take priority. Central Nest circulation is
+  requested when any bedroom reaches Speed 4 or higher, corresponding to
+  approximately 2.0°F of temperature imbalance. Xtend Tuya fan feedback may
+  remain stale, so commands are sent using the native fan entities.
 triggers:
-
-  # ------------------------------------------------------------
-  # Calculated target changes.
-  #
-  # Any temperature-driven change should be applied immediately.
-  # ------------------------------------------------------------
-
   - trigger: state
     entity_id:
       - sensor.bed_1_booster_target_speed
       - sensor.bed_2_booster_target_speed
-
-
-  # ------------------------------------------------------------
-  # HVAC action changes.
-  #
-  # Required because active heating/cooling imposes a minimum
-  # effective booster Speed 1 even when the calculated target is 0.
-  # ------------------------------------------------------------
-
+      - sensor.bed_3_booster_target_speed
   - trigger: state
     entity_id: climate.kitchen
     attribute: hvac_action
-
-
-  # ------------------------------------------------------------
-  # Hourly reconciliation.
-  #
-  # Re-applies the desired state in case of:
-  #
-  # - missed Tuya commands
-  # - temporary integration problems
-  # - booster restart
-  # - stale feedback
-  # - Nest fan timer refresh
-  # ------------------------------------------------------------
-
   - trigger: time_pattern
-    hours: "/1"
-
-
-  # ------------------------------------------------------------
-  # Home Assistant restart.
-  #
-  # Reconstructs the desired operating state after startup.
-  # ------------------------------------------------------------
-
+    hours: /1
   - trigger: homeassistant
     event: start
-
-
 conditions: []
-
-
-# ==============================================================
-# ACTIONS
-# ==============================================================
-
 actions:
-
-  # ============================================================
-  # EFFECTIVE BOOSTER TARGETS
-  #
-  # The template sensors provide the temperature-based target:
-  #
-  # 0 / 2 / 4 / 6 / 8 / 10
-  #
-  # When the HVAC is actively heating or cooling, the minimum
-  # effective booster target becomes Speed 1.
-  #
-  # Examples:
-  #
-  # Calculated 0 + HVAC idle    = 0
-  # Calculated 0 + HVAC cooling = 1
-  # Calculated 0 + HVAC heating = 1
-  # Calculated 2 + HVAC cooling = 2
-  # Calculated 6 + HVAC cooling = 6
-  #
-  # Higher calculated targets always take priority.
-  # ============================================================
-
   - variables:
-
-      bed_1_target: >
+      bed_1_target: |
         {% set base =
           states('sensor.bed_1_booster_target_speed') | int(0)
-        %}
-
-        {% set action =
+        %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
         %}
-
         {% if action in ['cooling', 'heating'] %}
           {{ [base, 1] | max }}
         {% else %}
           {{ base }}
         {% endif %}
-
-
-      bed_2_target: >
+      bed_2_target: |
         {% set base =
           states('sensor.bed_2_booster_target_speed') | int(0)
-        %}
-
-        {% set action =
+        %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
         %}
-
         {% if action in ['cooling', 'heating'] %}
           {{ [base, 1] | max }}
         {% else %}
           {{ base }}
         {% endif %}
-
-
-  # ============================================================
-  # BED 1 BOOSTER
-  # ============================================================
-
+      bed_3_target: |
+        {% set base =
+          states('sensor.bed_3_booster_target_speed') | int(0)
+        %} {% set action =
+          state_attr('climate.kitchen', 'hvac_action')
+        %}
+        {% if action in ['cooling', 'heating'] %}
+          {{ [base, 1] | max }}
+        {% else %}
+          {{ base }}
+        {% endif %}
   - choose:
-
-      # --------------------------------------------------------
-      # Bed 1 requires airflow.
-      # --------------------------------------------------------
-
       - conditions:
-
           - condition: template
-            value_template: >
+            value_template: |
               {{ bed_1_target | int > 0 }}
-
         sequence:
-
-          # ----------------------------------------------------
-          # Force manual FAN operating mode.
-          # ----------------------------------------------------
-
           - action: fan.set_preset_mode
             target:
               entity_id: fan.bed_1_booster
             data:
               preset_mode: FAN
-
-
-          # ----------------------------------------------------
-          # Give the Tuya device time to process the mode change.
-          # ----------------------------------------------------
-
-          - delay: "00:00:01"
-
-
-          # ----------------------------------------------------
-          # Convert booster level 1-10 to 10-100%.
-          #
-          # Examples:
-          #
-          # S1  -> 10%
-          # S2  -> 20%
-          # S4  -> 40%
-          # S10 -> 100%
-          # ----------------------------------------------------
-
+          - delay: '00:00:01'
           - action: fan.set_percentage
             target:
               entity_id: fan.bed_1_booster
             data:
-              percentage: >
+              percentage: |
                 {{ (bed_1_target | int) * 10 }}
-
-
-          - delay: "00:00:01"
-
-
-          # ----------------------------------------------------
-          # Turn ON after mode and speed are already configured.
-          #
-          # Testing showed the booster accepts configuration
-          # commands while OFF. Preparing the speed first avoids
-          # briefly starting at a previously stored value.
-          # ----------------------------------------------------
-
+          - delay: '00:00:01'
           - action: fan.turn_on
             target:
               entity_id: fan.bed_1_booster
-
-
-    # ----------------------------------------------------------
-    # No Bed 1 airflow demand.
-    # ----------------------------------------------------------
-
     default:
-
       - action: fan.turn_off
         target:
           entity_id: fan.bed_1_booster
-
-
-  # ============================================================
-  # BED 2 BOOSTER
-  #
-  # Uses exactly the same control sequence as Bed 1.
-  # ============================================================
-
   - choose:
-
-      # --------------------------------------------------------
-      # Bed 2 requires airflow.
-      # --------------------------------------------------------
-
       - conditions:
-
           - condition: template
-            value_template: >
+            value_template: |
               {{ bed_2_target | int > 0 }}
-
         sequence:
-
           - action: fan.set_preset_mode
             target:
               entity_id: fan.bed_2_booster
             data:
               preset_mode: FAN
-
-
-          - delay: "00:00:01"
-
-
+          - delay: '00:00:01'
           - action: fan.set_percentage
             target:
               entity_id: fan.bed_2_booster
             data:
-              percentage: >
+              percentage: |
                 {{ (bed_2_target | int) * 10 }}
-
-
-          - delay: "00:00:01"
-
-
+          - delay: '00:00:01'
           - action: fan.turn_on
             target:
               entity_id: fan.bed_2_booster
-
-
-    # ----------------------------------------------------------
-    # No Bed 2 airflow demand.
-    # ----------------------------------------------------------
-
     default:
-
       - action: fan.turn_off
         target:
           entity_id: fan.bed_2_booster
-
-
-  # ============================================================
-  # CENTRAL NEST BLOWER
-  #
-  # Current strategy:
-  #
-  # Effective Speed 0:
-  #   Booster OFF.
-  #
-  # Effective Speed 1:
-  #   HVAC-active minimum assistance only.
-  #
-  # Calculated Speed 2:
-  #   Local booster balancing.
-  #
-  # Speed 4 or greater:
-  #   Local booster + central HVAC circulation.
-  #
-  # Speed 4 corresponds to approximately 2.0°F of directional
-  # temperature imbalance with the current template curve.
-  # ============================================================
-
   - choose:
-
-      # --------------------------------------------------------
-      # CENTRAL CIRCULATION REQUIRED
-      #
-      # If either room reaches Speed 4 or above, start or refresh
-      # the independent Nest circulation request.
-      # --------------------------------------------------------
-
       - conditions:
-
           - condition: template
-            value_template: >
+            value_template: |
+              {{ bed_3_target | int > 0 }}
+        sequence:
+          - action: fan.set_preset_mode
+            target:
+              entity_id: fan.bed_3_booster
+            data:
+              preset_mode: FAN
+          - delay: '00:00:01'
+          - action: fan.set_percentage
+            target:
+              entity_id: fan.bed_3_booster
+            data:
+              percentage: |
+                {{ (bed_3_target | int) * 10 }}
+          - delay: '00:00:01'
+          - action: fan.turn_on
+            target:
+              entity_id: fan.bed_3_booster
+    default:
+      - action: fan.turn_off
+        target:
+          entity_id: fan.bed_3_booster
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: |
               {{
                 bed_1_target | int >= 4
                 or
                 bed_2_target | int >= 4
+                or
+                bed_3_target | int >= 4
               }}
-
         sequence:
-
-          # ----------------------------------------------------
-          # Start / refresh Nest fan timer.
-          #
-          # The 12-hour value acts as a renewable circulation
-          # lease. It is not intended to mean the blower should
-          # necessarily run continuously for 12 hours.
-          #
-          # The automation explicitly cancels the independent
-          # fan request when balancing demand disappears.
-          # ----------------------------------------------------
-
           - action: nest.set_fan_timer
             target:
               entity_id: climate.kitchen
             data:
               duration:
                 hours: 12
-
-
-    # ----------------------------------------------------------
-    # CENTRAL CIRCULATION NO LONGER REQUIRED
-    #
-    # Both rooms are currently below Speed 4.
-    #
-    # Keep circulation running for five additional minutes before
-    # cancelling the independent fan request.
-    # ----------------------------------------------------------
-
     default:
-
-      - delay: "00:05:00"
-
-
-      # --------------------------------------------------------
-      # LIVE RE-CHECK
-      #
-      # After the five-minute delay, verify the template targets
-      # again instead of relying on the variables calculated at
-      # the beginning of the automation run.
-      #
-      # If demand returned during the delay, mode: restart will
-      # normally already have restarted this automation.
-      #
-      # This condition provides an additional safety check.
-      # --------------------------------------------------------
-
+      - delay: '00:05:00'
       - condition: template
-        value_template: >
+        value_template: |
           {{
             states('sensor.bed_1_booster_target_speed') | int(0) < 4
             and
             states('sensor.bed_2_booster_target_speed') | int(0) < 4
+            and
+            states('sensor.bed_3_booster_target_speed') | int(0) < 4
           }}
-
-
-      # --------------------------------------------------------
-      # Stop the independent Nest circulation request.
-      #
-      # If the HVAC itself is actively heating or cooling, its
-      # normal blower operation remains controlled by the HVAC.
-      # --------------------------------------------------------
-
       - action: climate.set_fan_mode
         target:
           entity_id: climate.kitchen
         data:
-          fan_mode: "off"
-
-
-# ==============================================================
-# AUTOMATION MODE
-#
-# restart is critical for the five-minute post-circulation logic.
-#
-# Example:
-#
-# Demand falls below Speed 4
-#          ↓
-# Start 5-minute shutdown delay
-#          ↓
-# New demand appears after 2 minutes
-#          ↓
-# Automation restarts
-#          ↓
-# Pending shutdown is cancelled
-#          ↓
-# New desired state is applied immediately
-# ==============================================================
-
+          fan_mode: 'off'
 mode: restart

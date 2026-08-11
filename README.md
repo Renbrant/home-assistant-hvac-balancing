@@ -2,52 +2,56 @@
 
 ![Home Assistant HVAC Balancing](Photos/home-assistant-hvac-balancing.png)
 
-A smart HVAC room-balancing system built with **Home Assistant**, independent temperature sensors, smart register booster fans, and central HVAC blower control.
+A smart HVAC room-balancing system built with **Home Assistant**, independent Zigbee temperature sensors, smart register booster fans, Nest central blower control, adaptive PI-lite logic, and live power monitoring.
 
-The goal of this project is to reduce temperature differences between rooms by intelligently redistributing conditioned air instead of relying only on additional heating or cooling cycles.
+The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current version: v1.1.0 — Three-bedroom balancing**<br>
-> The system is currently field-tested and tuned primarily for summer / cooling operation.
+> **Current version: v1.2.0 — Active PI-Lite Thermal Balancing**
+> The system is operational and field-tested primarily during summer / cooling conditions.
 
 ---
 
-# Version 1.1.0
+# Version 1.2.0
 
-Version **v1.1.0** expands the original two-bedroom controller to support a third independently controlled bedroom while preserving the same control strategy introduced in v1.0.
+Version **v1.2.0** upgrades the three-bedroom controller from a fixed proportional airflow strategy to an **active PI-lite balancing controller**.
 
-## What's New in v1.1.0
+The original temperature-delta curve remains the proportional component (**Base P**), while a new adaptive component (**Adaptive I**) observes whether each bedroom imbalance is actually improving over time.
 
-- Added Bed 3 Zigbee temperature monitoring
-- Added a third smart register booster fan
-- Added Bed 3 raw temperature-delta calculation
-- Added Bed 3 calculated booster target speed
-- Added Bed 3 effective booster percentage
-- Extended the main automation from two to three bedroom boosters
-- Added Bed 3 to the central Nest blower demand logic
-- Added Bed 3 to the five-minute post-circulation re-check
-- Added Bed 3 to restart and hourly desired-state reconciliation
-- Expanded dashboard monitoring for three bedrooms
-- Added effective-percentage sensors for all three bedrooms so the final intended fan command can be monitored directly
+The final command becomes:
 
-## What Remains Unchanged
+```text
+PI Target = Base P + Adaptive I
+```
 
-The core v1.0 strategy is preserved:
+with anti-windup limiting the final target to Speed 10.
 
-- Kitchen remains the room-balancing temperature reference
-- Each bedroom is controlled independently
-- Booster speed is determined from directional temperature error
-- A 0.2°F hysteresis prevents rapid speed oscillation
-- Active HVAC operation imposes a minimum booster Speed 1
-- Speed 4 or higher requests central Nest blower circulation
-- Independent central circulation is released only after a five-minute delay when all bedroom demands remain below the threshold
-- Home Assistant remains the source of truth for the desired booster state because Xtend Tuya feedback can be stale
+## What's New in v1.2.0
+
+- Added active PI-lite adaptive balancing for Bed 1, Bed 2, and Bed 3
+- Added independent adaptive correction for each bedroom
+- Added approximately 20-minute performance evaluation windows
+- Added adaptive response based on measured improvement rate
+- Added `reference_error` tracking for each room
+- Added `last_evaluation` tracking for each room
+- Added persistent control-direction tracking
+- Added final PI target-speed sensors
+- Active balancing now continues while the thermostat remains in `COOL` or `HEAT` mode even if the compressor or furnace is temporarily idle
+- In `HEAT_COOL` mode, the active HVAC direction is retained while the system is idle
+- Central Nest circulation changed from an early assist to a **second-stage assist**
+- Nest circulation now starts only when any final PI target reaches **Speed 8 or higher**
+- Updated five-minute central-fan release logic to use PI targets
+- Added multi-panel Plotly monitoring with a shared time axis
+- Added HVAC electrical power visualization using AC and indoor airflow/blower power
+- Added historical fan-speed percentage visualization for all three boosters
+- Added compact TV monitoring and full-screen diagnostic layouts
 
 ## Version History
 
 | Version | Description |
 |---|---|
 | **v1.0.0** | Initial production controller with Bed 1 and Bed 2 balancing |
-| **v1.1.0** | Adds Bed 3 and expands the existing control architecture to three independently controlled bedrooms |
+| **v1.1.0** | Added Bed 3 and expanded the controller to three independently controlled bedrooms |
+| **v1.2.0** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
 
 ---
 
@@ -70,76 +74,98 @@ In this installation, the upstairs bedrooms can become significantly warmer than
 
 Simply lowering the thermostat setpoint would increase compressor runtime and may overcool other areas of the house.
 
-The objective is therefore to improve **air distribution** before asking the HVAC system to produce additional cooling.
+The objective is therefore to improve **air distribution first**, using targeted airflow correction whenever possible.
 
 ---
 
 # The Solution
 
-Home Assistant continuously compares the temperature of each controlled bedroom against a dedicated reference temperature sensor in the Kitchen.
+Home Assistant continuously compares each controlled bedroom against a dedicated Kitchen reference sensor.
 
-Based on that temperature difference, the system dynamically controls smart register booster fans installed in the bedroom supply vents.
+Each bedroom has an independently controlled register booster fan.
 
-For smaller temperature differences, only the local bedroom booster is used.
+The controller has two layers:
 
-For larger differences, Home Assistant can also request operation of the central HVAC blower to increase airflow through the complete duct system.
+```text
+Base P
+Temperature-driven proportional command
+
+        +
+
+Adaptive I
+Performance-driven correction
+
+        =
+
+Final PI Target
+```
+
+The local bedroom booster is always the first balancing actuator.
+
+The Nest central blower is used only as a second-stage airflow assist when local correction becomes strong enough to justify whole-system circulation.
 
 The Nest thermostat continues to control normal heating and cooling.
 
-Home Assistant operates as an additional:
+Home Assistant acts as an additional:
 
-> **Airflow-balancing control layer**
-
-The objective is to improve temperature distribution using airflow whenever possible, potentially reducing the need for additional HVAC cooling cycles.
+> **Active airflow-balancing control layer**
 
 ---
 
 # System Overview
 
 ```text
-                    ┌──────────────────────┐
-                    │    Nest Thermostat   │
-                    │                      │
-                    │ Heating / Cooling    │
-                    │ Central Blower       │
-                    └──────────┬───────────┘
-                               │
-                               │ HVAC State
-                               │
-                    ┌──────────▼───────────┐
-                    │    Home Assistant    │
-                    │                      │
-                    │ Temperature Delta    │
-                    │ Hysteresis           │
-                    │ Booster Control      │
-                    │ Blower Control       │
-                    └──────┬──────┬───────┘
-                           │      │
-                ┌──────────┘      └──────────┐
-                │                            │
-         ┌──────▼──────┐              ┌──────▼──────┐
-         │    Bed 1    │              │    Bed 2    │
-         │ Temp Sensor │              │ Temp Sensor │
-         │ Booster Fan │              │ Booster Fan │
-         └─────────────┘              └─────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │    Bed 3    │
-                    │ Temp Sensor │
-                    │ Booster Fan │
-                    └─────────────┘
+                         ┌──────────────────────┐
+                         │    Nest Thermostat   │
+                         │                      │
+                         │ Heating / Cooling    │
+                         │ Central Blower       │
+                         └──────────┬───────────┘
+                                    │
+                                    │ HVAC mode / action
+                                    │
+                         ┌──────────▼───────────┐
+                         │    Home Assistant    │
+                         │                      │
+                         │  Temperature Delta   │
+                         │  Base P              │
+                         │  Adaptive I          │
+                         │  PI Target           │
+                         │  Booster Control     │
+                         │  Nest Assist         │
+                         └──────┬──────┬────────┘
+                                │      │
+                 ┌──────────────┘      └──────────────┐
+                 │                                    │
+          ┌──────▼──────┐                      ┌──────▼──────┐
+          │    Bed 1    │                      │    Bed 2    │
+          │ Temp Sensor │                      │ Temp Sensor │
+          │ Booster Fan │                      │ Booster Fan │
+          └─────────────┘                      └─────────────┘
+                                │
+                         ┌──────▼──────┐
+                         │    Bed 3    │
+                         │ Temp Sensor │
+                         │ Booster Fan │
+                         └─────────────┘
 
-                    Temperature Reference
-                              │
-                       ┌──────▼──────┐
-                       │   Kitchen   │
-                       │ Temp Sensor │
-                       └─────────────┘
+                         Temperature Reference
+                                   │
+                            ┌──────▼──────┐
+                            │   Kitchen   │
+                            │ Temp Sensor │
+                            └─────────────┘
 ```
 
-Each bedroom has its own temperature sensor, calculated target, effective command, and physical booster.
+Each bedroom has its own:
 
-Any bedroom can independently request central blower assistance when its balancing demand reaches the configured threshold.
+- Temperature sensor
+- Raw temperature delta
+- Base proportional target
+- Adaptive correction
+- Final PI target
+- Effective commanded percentage
+- Physical booster fan
 
 ---
 
@@ -147,9 +173,7 @@ Any bedroom can independently request central blower assistance when its balanci
 
 ## Register Booster Fans
 
-Three smart HVAC register booster fans are currently installed.
-
-The same model is used in:
+Three smart HVAC register booster fans are currently installed:
 
 - Bed 1
 - Bed 2
@@ -189,34 +213,20 @@ Temperature measurements used by the balancing controller come from dedicated **
 **Sensor used in this project:**  
 [Zigbee 3.0 Temperature & Humidity Sensor — Amazon](https://amzn.to/4czY3p1)
 
-The same sensor model is currently used in:
+The same sensor model is used in:
 
 - Kitchen
 - Bed 1
 - Bed 2
 - Bed 3
 
-Using the same model in all controlled locations is intentional because the controller is primarily interested in the **temperature difference between rooms**.
-
-### Sensor Specifications
-
-According to the product listing:
-
-| Specification | Value |
-|---|---|
-| Temperature accuracy | ±0.2°C / ±0.4°F |
-| Humidity accuracy | ±2% RH |
-| Refresh interval | Approximately 5 seconds |
-| Wireless protocol | Zigbee 3.0 |
-| Power source | Standard AAA batteries |
-| Advertised battery life | Up to 2 years |
-| Measurements | Temperature, humidity, dew point and VPD |
+Using the same sensor model in all controlled locations is intentional because the controller is primarily interested in **temperature difference between rooms**.
 
 ### Temperature Entities
 
 | Location | Function | Entity |
 |---|---|---|
-| Kitchen | Main temperature reference | `sensor.kitchen_temp_temperature` |
+| Kitchen | Main balancing reference | `sensor.kitchen_temp_temperature` |
 | Bed 1 | Controlled bedroom | `sensor.bed_1_temp_temperature` |
 | Bed 2 | Controlled bedroom | `sensor.bed_2_temp_temperature` |
 | Bed 3 | Controlled bedroom | `sensor.bed_3_temp_temperature` |
@@ -227,86 +237,41 @@ According to the product listing:
 
 The booster fans are Tuya-based Wi-Fi devices.
 
-They work normally within the Tuya / Smart Life ecosystem, but during this implementation the **official Home Assistant Tuya integration did not expose the controls required to properly operate this particular booster model**.
-
-For this reason, the project uses **Xtend Tuya**.
-
-## What is Xtend Tuya?
-
-Xtend Tuya is a custom Home Assistant integration designed to extend the official Tuya integration by exposing entities and capabilities that may not otherwise be available for some Tuya devices.
+The official Home Assistant Tuya integration did not expose all controls required by this booster model, so this project uses **Xtend Tuya**.
 
 Project repository:
 
 [azerty9971/xtend_tuya on GitHub](https://github.com/azerty9971/xtend_tuya)
 
-Xtend Tuya is not part of Home Assistant Core.
+Xtend Tuya exposed the required controls for:
 
-In this installation, it exposed the controls required to operate the register booster fans.
-
-<p align="center">
-  <img src="Photos/XTend%20Tuya%20Register%20Booster%20Fan%20integration.png"
-       width="100%"
-       alt="Xtend Tuya Register Booster Fan integration">
-</p>
-
-The required functionality includes:
-
-- Fan power control
-- Operating mode
-- Speed / percentage control
-- Fan entity control
-
----
+- Fan power
+- FAN preset mode
+- Percentage / speed control
+- Native `fan` entity commands
 
 ## Xtend Tuya Limitations Observed
 
-At the time of implementation in **August 2026**, Xtend Tuya was functional for controlling these boosters, but device-state feedback was not completely reliable.
+At the time of implementation in **August 2026**, command delivery was reliable, but reported device state could occasionally remain stale.
 
-Home Assistant could occasionally display stale values for items such as:
+Potentially stale feedback included:
 
-- Current fan speed
+- Current speed
 - Fan percentage
-- Operating / preset mode
+- Preset mode
 - Some Tuya select entities
 
-The physical booster and Tuya application could show the correct state while Home Assistant continued showing an older value.
+For this reason:
 
-However, **command delivery worked reliably for the operations required by this project**.
-
-Successfully tested commands include:
-
-- Set booster operating mode to `FAN`
-- Set fan percentage
-- Turn booster ON
-- Turn booster OFF
-- Configure a new speed while the fan is OFF
-- Start directly at the configured speed
+> **Home Assistant is treated as the source of truth for the desired booster state.**
 
 ---
 
-# Desired-State Control
+# Booster Command Sequence
 
-Because commands were reliable while device feedback could remain stale, the controller does not depend on reported fan state to determine what should happen next.
+Testing showed that the boosters accept preset and percentage commands while powered OFF.
 
-> **Home Assistant is the source of truth for the requested booster state.**
-
-Home Assistant independently calculates:
-
-1. Current room temperature imbalance
-2. Required booster target speed
-3. Effective fan command after HVAC minimum-speed rules
-4. Whether central circulation is required
-5. Which commands must be sent to each booster
-
-Reported Tuya state is treated primarily as diagnostic information.
-
----
-
-## Booster Command Sequence
-
-Testing showed that the boosters accept operating-mode and speed commands while powered OFF.
-
-Whenever a booster needs to operate, Home Assistant uses this sequence:
+Whenever a booster needs to run, Home Assistant uses this sequence:
 
 ```text
 Set FAN mode
@@ -324,9 +289,7 @@ Wait 1 second
 Turn booster ON
 ```
 
-This prepares the desired speed before startup and prevents the fan from briefly starting at an older stored value.
-
-The physical fan levels map directly to Home Assistant percentage:
+The speed mapping is:
 
 | Booster Level | HA Percentage |
 |---:|---:|
@@ -349,25 +312,19 @@ If no airflow is required, Home Assistant sends an OFF command.
 
 ## Temperature Reference
 
-The dedicated Kitchen Zigbee sensor is used as the main reference for balancing.
+The dedicated Kitchen Zigbee sensor is the balancing reference.
 
-The controller compares each bedroom against this sensor rather than using the Nest thermostat's internal temperature as the primary balancing measurement.
-
-This keeps Kitchen, Bed 1, Bed 2, and Bed 3 comparisons based on the same sensor model and measurement technology.
+The controller intentionally compares Kitchen, Bed 1, Bed 2, and Bed 3 using the same sensor model instead of using the Nest thermostat temperature as the primary balancing reference.
 
 ---
 
-## Temperature Delta
+## Raw Temperature Delta
 
-Home Assistant calculates a raw temperature delta for each bedroom:
+Home Assistant calculates:
 
-**Bedroom Temperature − Kitchen Temperature**
-
-| Raw Delta | Meaning |
-|---:|---|
-| Positive | Bedroom is warmer than Kitchen |
-| 0°F | Temperatures are equal |
-| Negative | Bedroom is cooler than Kitchen |
+```text
+Bedroom Temperature - Kitchen Temperature
+```
 
 Template entities:
 
@@ -377,55 +334,81 @@ sensor.bed_2_temperature_delta
 sensor.bed_3_temperature_delta
 ```
 
-During summer cooling, a positive bedroom delta indicates that the bedroom is warmer than the Kitchen and may require additional airflow.
+| Raw Delta | Meaning |
+|---:|---|
+| Positive | Bedroom is warmer than Kitchen |
+| 0°F | Temperatures are equal |
+| Negative | Bedroom is cooler than Kitchen |
 
 ---
 
-## Directional Error
+# Directional Control Error
 
-The raw delta is always:
+The raw delta always represents:
 
 ```text
 Bedroom - Kitchen
 ```
 
-but booster demand depends on HVAC mode.
+but the balancing demand changes direction depending on thermostat mode.
 
-### Cooling
-
-```text
-Directional Error = Bedroom - Kitchen
-```
-
-A warmer bedroom creates positive demand.
-
-### Heating
+## COOL mode
 
 ```text
-Directional Error = Kitchen - Bedroom
+Control Error = Bedroom - Kitchen
 ```
 
-A colder bedroom creates positive demand.
+A warmer bedroom creates positive airflow demand.
 
-### Heat/Cool Auto Mode
+## HEAT mode
 
-When the Nest is in `heat_cool`, `hvac_action` determines which direction is active.
+```text
+Control Error = Kitchen - Bedroom
+```
 
-The template architecture therefore already supports directional heating logic, but:
+A colder bedroom creates positive airflow demand.
 
-> **Heating behavior has not yet been seasonally field-tested or tuned.**
+## HEAT_COOL mode
 
-The current production tuning documented here is based primarily on summer cooling operation.
+When `hvac_action` is actively `cooling` or `heating`, that action establishes the current direction.
+
+When the thermostat remains in `heat_cool` but becomes idle, v1.2 retains the most recently known heating/cooling direction so active thermal balancing can continue between compressor/furnace cycles.
 
 ---
 
-# Calculated and Effective Booster Commands
+# Active Thermal Balancing
 
-Version 1.1 exposes two separate concepts for each bedroom.
+A major v1.2 change is that balancing is based primarily on **thermostat operating mode**, not only on active compressor/furnace runtime.
 
-## Calculated Target Speed
+For example, while the Nest remains in `COOL` mode:
 
-The temperature-derived controller target:
+```text
+Bedroom warmer than Kitchen
+          │
+          ▼
+Balancing demand remains active
+          │
+          ▼
+Bedroom booster may continue running
+```
+
+This remains true even when:
+
+```text
+hvac_action = idle
+```
+
+That allows the system to continue redistributing already-conditioned air and can improve equalization between normal AC cycles.
+
+The same concept applies in `HEAT` mode with the error direction reversed.
+
+---
+
+# Base P — Proportional Controller
+
+The original temperature-based controller remains the proportional component of the new PI-lite architecture.
+
+Entities:
 
 ```text
 sensor.bed_1_booster_target_speed
@@ -433,17 +416,163 @@ sensor.bed_2_booster_target_speed
 sensor.bed_3_booster_target_speed
 ```
 
-Possible values are:
+## Base Speed Curve
+
+| Directional Error | Base P |
+|---:|---:|
+| `< 1.5°F` | 0 |
+| `1.5 – <2.0°F` | 2 |
+| `2.0 – <2.5°F` | 4 |
+| `2.5 – <3.0°F` | 6 |
+| `3.0 – <3.5°F` | 8 |
+| `≥ 3.5°F` | 10 |
+
+Examples:
 
 ```text
-0 / 2 / 4 / 6 / 8 / 10
+1.7°F → Base P 2
+2.2°F → Base P 4
+2.7°F → Base P 6
+3.2°F → Base P 8
+3.5°F → Base P 10
+```
+
+## Hysteresis
+
+The proportional controller keeps approximately **0.2°F hysteresis** when reducing demand.
+
+| Rising Threshold | Base P | Falling Threshold |
+|---:|---:|---:|
+| 1.5°F | 2 | ≤ 1.3°F → 0 |
+| 2.0°F | 4 | ≤ 1.8°F → 2 |
+| 2.5°F | 6 | ≤ 2.3°F → 4 |
+| 3.0°F | 8 | ≤ 2.8°F → 6 |
+| 3.5°F | 10 | ≤ 3.3°F → 8 |
+
+---
+
+# Adaptive I — PI-Lite Correction
+
+The proportional controller can determine how serious the current imbalance is, but it cannot determine whether the selected airflow is actually solving the problem fast enough.
+
+v1.2 adds an adaptive correction for each bedroom:
+
+```text
+sensor.bed_1_booster_adaptive_boost
+sensor.bed_2_booster_adaptive_boost
+sensor.bed_3_booster_adaptive_boost
+```
+
+The adaptive controller wakes every **5 minutes**, but changes its correction only after approximately **20 minutes** of observation.
+
+Each room tracks:
+
+- Current directional error
+- Reference error from the previous evaluation window
+- Last evaluation timestamp
+- Current control direction
+- Current adaptive correction
+
+## 20-Minute Adaptive Response
+
+After approximately 20 minutes:
+
+| Improvement during window | Adaptive response |
+|---:|---|
+| `< 0.2°F` | Increase Adaptive I by 1 |
+| `0.2 – <0.5°F` | Hold current Adaptive I |
+| `≥ 0.5°F` | Reduce Adaptive I by 1 |
+
+Conceptually:
+
+```text
+Reference Error
+      -
+Current Error
+      =
+Improvement
+```
+
+Example:
+
+```text
+Reference error = 3.0°F
+Current error   = 2.9°F
+Improvement     = 0.1°F
+
+Result: airflow is not correcting fast enough
+        → Adaptive I +1
+```
+
+Another example:
+
+```text
+Reference error = 3.0°F
+Current error   = 2.4°F
+Improvement     = 0.6°F
+
+Result: room is responding well
+        → Adaptive I -1
+```
+
+## Adaptive Reset / Unwind Rules
+
+The adaptive correction is removed or reduced when appropriate:
+
+- Thermostat operating direction changes
+- A required temperature sensor is unavailable
+- Directional error reaches **1.3°F or less**
+- Base P is already Speed 10 and no additional headroom exists
+- When the error is between roughly **1.3°F and 1.5°F**, the adaptive correction unwinds one step at each evaluation
+
+## Anti-Windup
+
+The controller never allows the adaptive term to push the final command beyond Speed 10.
+
+```text
+Adaptive Headroom = 10 - Base P
 ```
 
 ---
 
-## Effective Percentage
+# Final PI Target
 
-The final intended fan percentage after the HVAC-active minimum-speed rule is applied:
+The final controller target is:
+
+```text
+PI Target = Base P + Adaptive I
+```
+
+limited to:
+
+```text
+Maximum = Speed 10
+```
+
+Entities:
+
+```text
+sensor.bed_1_booster_pi_target_speed
+sensor.bed_2_booster_pi_target_speed
+sensor.bed_3_booster_pi_target_speed
+```
+
+Example:
+
+```text
+Base P      = 6
+Adaptive I  = 2
+----------------
+PI Target   = 8
+```
+
+This allows a moderate temperature imbalance that is not improving fast enough to progressively request more local airflow.
+
+---
+
+# Effective Booster Percentage
+
+The final percentage intended for each physical booster is exposed through:
 
 ```text
 sensor.bed_1_booster_effective_percentage
@@ -451,163 +580,98 @@ sensor.bed_2_booster_effective_percentage
 sensor.bed_3_booster_effective_percentage
 ```
 
-Examples:
-
-| Calculated Target | HVAC Action | Effective Command |
-|---:|---|---:|
-| 0 | idle | 0% |
-| 0 | cooling | 10% |
-| 0 | heating | 10% |
-| 2 | cooling | 20% |
-| 4 | cooling | 40% |
-| 10 | cooling | 100% |
-
-This distinction makes it possible to monitor both **why the controller selected a target** and **what command the automation actually intends to send**.
-
----
-
-# Current Summer Control Strategy
-
-## Booster Speed Curve
-
-Real-world testing showed that the original conservative controller equalized rooms too slowly, so the control curve was made more aggressive.
-
-The current curve is:
-
-| Directional Temperature Difference | Booster Target |
-|---:|---:|
-| `< 1.5°F` | OFF |
-| `1.5 – <2.0°F` | Speed 2 |
-| `2.0 – <2.5°F` | Speed 4 |
-| `2.5 – <3.0°F` | Speed 6 |
-| `3.0 – <3.5°F` | Speed 8 |
-| `≥ 3.5°F` | Speed 10 |
-
-Examples:
+The PI target normally maps directly to percentage:
 
 ```text
-ΔT = 1.7°F  → Speed 2
-ΔT = 2.2°F  → Speed 4
-ΔT = 2.7°F  → Speed 6
-ΔT = 3.2°F  → Speed 8
-ΔT = 3.5°F  → Speed 10
+Speed 4 → 40%
+Speed 6 → 60%
+Speed 8 → 80%
+Speed 10 → 100%
 ```
-
----
-
-## Hysteresis
-
-The controller uses approximately:
-
-> **0.2°F hysteresis**
-
-This prevents rapid speed changes when a temperature difference fluctuates around a threshold.
-
-| Rising Threshold | Target | Falling Threshold |
-|---:|---:|---:|
-| 1.5°F | Speed 2 | ≤ 1.3°F → OFF |
-| 2.0°F | Speed 4 | ≤ 1.8°F → Speed 2 |
-| 2.5°F | Speed 6 | ≤ 2.3°F → Speed 4 |
-| 3.0°F | Speed 8 | ≤ 2.8°F → Speed 6 |
-| 3.5°F | Speed 10 | ≤ 3.3°F → Speed 8 |
-
----
 
 ## HVAC-Active Minimum Speed
 
-When the HVAC is actively heating or cooling, all three bedroom boosters operate at a minimum of:
+When the HVAC is actively heating or cooling, all three boosters run at a minimum of:
 
-> **Speed 1**
-
-The Speed 1 rule is only a minimum.
-
-A higher calculated target always takes priority.
+> **Speed 1 / 10%**
 
 Conceptually:
 
 ```text
-Effective Target = max(Calculated Target, 1)
+if hvac_action = cooling or heating:
+    Effective Speed = max(PI Target, 1)
+else:
+    Effective Speed = PI Target
 ```
 
-while:
+This minimum rule applies only while the central HVAC is actively producing conditioned air.
 
-```text
-hvac_action = cooling
-```
-
-or:
-
-```text
-hvac_action = heating
-```
-
-When HVAC is idle, the calculated target is used without the Speed 1 minimum.
+The PI balancing target itself may remain active while `hvac_action` is idle.
 
 ---
 
-## Central Blower Assistance
+# Central Nest Blower — Second-Stage Assist
 
-Small temperature differences are handled locally by the booster fan.
+v1.2 changes the central blower strategy significantly.
 
-When **any bedroom** reaches:
+In v1.1, the Nest blower joined relatively early in the balancing process.
 
-> **Speed 4 or greater**
+In v1.2, the local booster gets the first opportunity to correct the imbalance.
 
-Home Assistant also requests central HVAC blower circulation through the Nest thermostat.
-
-With the current curve, Speed 4 corresponds to approximately:
-
-> **2.0°F of directional temperature imbalance**
-
-Conceptually:
+The Nest blower is requested only when **any final PI target reaches Speed 8 or higher**.
 
 ```text
-Bed 1 target >= 4
+Bed 1 PI Target >= 8
         OR
-Bed 2 target >= 4
+Bed 2 PI Target >= 8
         OR
-Bed 3 target >= 4
+Bed 3 PI Target >= 8
         │
         ▼
-Request central Nest circulation
+Request Nest circulation
 ```
 
-A 12-hour Nest fan timer is used as a renewable circulation lease.
+Example:
 
-The hourly reconciliation refreshes it while balancing demand remains present.
+```text
+Base P = 6
+Adaptive I = 0 → PI 6 → booster only
+Adaptive I = 1 → PI 7 → booster only
+Adaptive I = 2 → PI 8 → Nest circulation joins
+```
+
+A severe imbalance that already produces Base P 8 or 10 requests central circulation immediately.
+
+The implementation uses a renewable **12-hour Nest fan timer** while strong balancing demand exists.
 
 ---
 
-## Five-Minute Post-Circulation
+# Five-Minute Central-Fan Release
 
-When all three bedroom calculated targets fall below Speed 4, independent central circulation is not stopped immediately.
+When all three PI targets fall below Speed 8, independent central circulation is not stopped immediately.
 
 The controller waits:
 
 > **5 minutes**
 
-and then performs a live re-check of all three target sensors.
+and then re-checks the current PI targets.
 
 ```text
-Bed 1 < 4
-   AND
-Bed 2 < 4
-   AND
-Bed 3 < 4
-    │
-    ▼
+All PI Targets < 8
+       │
+       ▼
 Wait 5 minutes
-    │
-    ▼
-Re-check all 3 rooms
-    │
- ┌──┴──────────────┐
- │                 │
-Demand returned   Still below
- │                 │
- ▼                 ▼
-Keep blower      Cancel independent
-running          Nest circulation
+       │
+       ▼
+Re-check live PI targets
+       │
+   ┌───┴──────────┐
+   │              │
+Demand returned   Still < 8
+   │              │
+   ▼              ▼
+Keep circulation  Stop independent
+                  Nest circulation
 ```
 
 The automation uses:
@@ -616,193 +680,210 @@ The automation uses:
 mode: restart
 ```
 
-so new demand during the five-minute delay cancels the pending shutdown and immediately applies the new desired state.
+so new demand during the delay restarts the automation and prevents a stale shutdown decision.
 
 ---
 
-## Automatic Recovery and Reconciliation
+# Automatic Recovery and Reconciliation
 
-The controller reacts immediately when:
+The main automation reacts when:
 
-- Bed 1 calculated target changes
-- Bed 2 calculated target changes
-- Bed 3 calculated target changes
-- HVAC `hvac_action` changes
+- Bed 1 PI target changes
+- Bed 2 PI target changes
+- Bed 3 PI target changes
+- Nest `hvac_action` changes
+- Thermostat operating mode changes
 
 It also runs:
 
-- When Home Assistant starts
-- Once per hour as a reconciliation cycle
+- On Home Assistant startup
+- Once per hour for reconciliation
 
-The hourly cycle re-applies desired state and helps recover from:
+This helps recover from:
 
 - Missed Tuya commands
-- Temporary integration failure
+- Temporary integration issues
 - Booster reboot
 - Home Assistant restart
-- Nest fan timer refresh requirements
-- Stale device feedback
+- Stale feedback
+- Nest fan timer expiration
 
 ---
 
-# v1.1 Control Flow
+# v1.2 Control Flow
 
-Each bedroom follows the same pipeline:
+Each bedroom follows the same control pipeline:
 
 ```text
 Bedroom Temperature
         │
         ▼
-Raw Temperature Delta
+Directional Temperature Error
         │
         ▼
-Directional Error
+Base P
         │
-        ▼
-Calculated Target Speed
-        │
-        ▼
-HVAC Minimum-Speed Rule
-        │
-        ▼
-Effective Percentage
-        │
-        ▼
-Physical Booster Command
+        ├─────────────┐
+        │             │
+        ▼             ▼
+20-minute        Current Error
+Reference Error      │
+        │             │
+        └──────┬──────┘
+               ▼
+          Adaptive I
+               │
+               ▼
+     PI Target = P + I
+               │
+               ▼
+   HVAC Active Minimum Rule
+               │
+               ▼
+     Effective Percentage
+               │
+               ▼
+       Physical Booster
 ```
 
-The three room pipelines operate independently but share the same Kitchen reference and central blower decision.
+The three independent room controllers share:
 
-```text
-Kitchen Reference
-      │
-      ├── Bed 1 → Delta → Target → Effective % → Booster 1
-      ├── Bed 2 → Delta → Target → Effective % → Booster 2
-      └── Bed 3 → Delta → Target → Effective % → Booster 3
-                         │
-                         └── Any target >= 4
-                                  │
-                                  ▼
-                           Central Blower
-```
-
----
-
-# Energy Considerations
-
-HVAC electrical consumption was monitored during development.
-
-The installation has separate monitored circuits for:
-
-- Outdoor AC compressor / condenser
-- Indoor furnace / blower
-
-Observed values were approximately:
-
-| Operating Component | Observed Power |
-|---|---:|
-| Central circulation blower | ~200 W |
-| Indoor blower during active cooling | ~280 W at one observed operating point |
-| Outdoor AC compressor / condenser | ~2 kW or more |
-
-These values are specific to this installation and should not be interpreted as universal HVAC specifications.
-
-They demonstrate an important principle for this project:
-
-> Moving already-conditioned air around the house requires substantially less power than producing additional cooling with the compressor.
-
----
-
-# Monitoring
-
-A dedicated Home Assistant dashboard is used to observe and tune the controller.
-
-The dashboard monitors:
-
-- HVAC operating state
 - Kitchen reference temperature
-- Bed 1, Bed 2, and Bed 3 temperatures
-- Three bedroom temperature deltas
-- Three calculated booster targets
-- Three effective booster percentages
-- Booster activity
-- Central blower activity
-- Xtend Tuya raw feedback
-- Historical temperature balance
-- Historical speed-versus-delta behavior
-
-ApexCharts is used for historical visualization.
+- Thermostat mode/direction
+- Nest second-stage circulation decision
 
 ---
 
-## Live System Status
+# Energy Monitoring
 
-The live card is designed to remain compact while showing the most important information for all three rooms.
+HVAC electrical consumption is monitored separately for the outdoor AC equipment and indoor furnace/blower circuit.
 
-Each bedroom row can display:
+Primary entities used by the dashboard:
 
 ```text
-Temperature | ΔT | Effective Speed
+sensor.ac_power_total
+sensor.furnace_power_total
 ```
 
-while the native Nest climate row preserves current HVAC mode, target, measured temperature, and humidity information.
+The second sensor is displayed in the dashboard as **Airflow**, because in this installation it provides a useful view of indoor blower/circulation activity.
+
+Observed values are installation-specific, but historical measurements showed the central blower consumes substantially less power than the outdoor compressor.
+
+This supports the core optimization idea:
+
+> **Use airflow redistribution when practical before asking the compressor to do additional work.**
 
 ---
 
-## Booster Controller
+# Monitoring and Diagnostics
 
-The **Booster Controller** graph compares calculated target speed against temperature delta.
+v1.2 introduces a significantly expanded monitoring interface.
 
-The controller uses discrete speed steps while the temperature-delta series remains continuous.
+The current live dashboard exposes:
 
-For visualization only, small graphical offsets may be used when multiple bedrooms have the same target so the lines do not completely overlap.
-
-Those offsets affect only display position and never change controller values.
-
----
-
-## Temperature Balance
-
-The **Temperature Balance** graph compares Kitchen with all three controlled bedrooms over time.
-
-The objective is not simply absolute room temperature.
-
-The primary question is whether each bedroom follows the Kitchen reference more closely after airflow correction.
-
-A successful balancing strategy should produce:
-
-> **Smaller temperature differences and shorter periods of significant imbalance.**
+- Current AC status
+- Bed 1 / Bed 2 / Bed 3 temperatures
+- Raw ΔT values
+- Base P command
+- Adaptive I correction
+- 20-minute reference error
+- Last PI evaluation time
+- Final PI target
+- Effective fan percentage
+- AC electrical power
+- Indoor airflow/blower electrical power
+- Historical room temperatures
+- Historical temperature deltas
+- Historical fan-speed percentages
 
 ---
 
-## Existing Screenshots
+## Plotly Multi-Panel Dashboard
 
-The repository includes screenshots captured during development of the controller:
+The primary v1.2 visualization uses **Plotly Graph Card** with multiple vertically stacked plots sharing the same time axis.
 
-![HVAC Smart Booster - Live Status](Photos/HVAC%20Smart%20Booster%20-%20Live%20Status.png)
+The dashboard is organized as:
 
-![Booster Controller](Photos/Booster%20Controller.png)
+```text
+1. HVAC Power
+   AC power + Airflow/blower power
 
-![Temperature Balance](Photos/Temperature%20Balance.png)
+2. Temperatures
+   AC temperature + Target + Kitchen + Bed 1 + Bed 2 + Bed 3
 
-> Some screenshots were captured during the v1.0 two-bedroom implementation and may not yet visually show Bed 3. The YAML files in `HomeAssistant/` are the authoritative configuration for the current release.
+3. Delta
+   Bed 1 ΔT + Bed 2 ΔT + Bed 3 ΔT
+
+4. Fan Speed
+   Bed 1 + Bed 2 + Bed 3 effective fan percentage
+```
+
+This makes it possible to visually correlate:
+
+```text
+HVAC activity
+      ↓
+Temperature response
+      ↓
+Room imbalance
+      ↓
+Booster response
+```
+
+Two versions are currently used:
+
+- Compact 48-hour TV monitoring layout
+- Larger full-screen diagnostic layout with a longer history window
+
+---
+
+## Live Status Table
+
+A compact live table shows all three rooms side-by-side.
+
+Typical rows include:
+
+```text
+Temperature
+Delta
+Base P
+Adaptive I
+Reference Error
+Last Evaluation
+PI Target
+Fan %
+```
+
+This makes the controller state readable at a glance without opening individual entities.
+
+---
+
+# Dashboard Dependencies
+
+Depending on which included dashboard layout is used, the current UI may require custom Lovelace cards including:
+
+- `plotly-graph-card`
+- `multiple-entity-row`
+- `card-mod`
+
+Earlier diagnostic views also use `apexcharts-card`.
 
 ---
 
 # Home Assistant Configuration
 
-The actual Home Assistant YAML configuration is stored separately from this project overview.
+The project configuration is stored in the `HomeAssistant/` directory.
 
 | File | Purpose |
 |---|---|
-| [`HomeAssistant/templates.yaml`](HomeAssistant/templates.yaml) | Temperature delta, target-speed, and effective-percentage template sensors |
-| [`HomeAssistant/automation.yaml`](HomeAssistant/automation.yaml) | Three-bedroom booster and central blower control |
-| [`HomeAssistant/dashboard.yaml`](HomeAssistant/dashboard.yaml) | Monitoring and diagnostics dashboard |
+| [`HomeAssistant/templates.yaml`](HomeAssistant/templates.yaml) | Temperature delta, Base P, Adaptive I, PI target, and effective-percentage template sensors |
+| [`HomeAssistant/automation.yaml`](HomeAssistant/automation.yaml) | Three-bedroom booster control and second-stage Nest circulation |
+| [`HomeAssistant/dashboard.yaml`](HomeAssistant/dashboard.yaml) | Monitoring, Plotly visualization, and diagnostics |
 | [`HomeAssistant/README.md`](HomeAssistant/README.md) | Installation and implementation notes |
 
 ---
 
-# Core v1.1 Entities
+# Core v1.2 Entities
 
 ## Temperature
 
@@ -813,7 +894,7 @@ sensor.bed_2_temp_temperature
 sensor.bed_3_temp_temperature
 ```
 
-## Temperature Delta
+## Raw Temperature Delta
 
 ```text
 sensor.bed_1_temperature_delta
@@ -821,12 +902,37 @@ sensor.bed_2_temperature_delta
 sensor.bed_3_temperature_delta
 ```
 
-## Calculated Target Speed
+## Base P
 
 ```text
 sensor.bed_1_booster_target_speed
 sensor.bed_2_booster_target_speed
 sensor.bed_3_booster_target_speed
+```
+
+## Adaptive I
+
+```text
+sensor.bed_1_booster_adaptive_boost
+sensor.bed_2_booster_adaptive_boost
+sensor.bed_3_booster_adaptive_boost
+```
+
+Adaptive sensor attributes include:
+
+```text
+directional_error
+reference_error
+last_evaluation
+control_direction
+```
+
+## Final PI Target
+
+```text
+sensor.bed_1_booster_pi_target_speed
+sensor.bed_2_booster_pi_target_speed
+sensor.bed_3_booster_pi_target_speed
 ```
 
 ## Effective Percentage
@@ -849,6 +955,13 @@ fan.bed_3_booster
 
 ```text
 climate.kitchen
+```
+
+## HVAC Power Monitoring
+
+```text
+sensor.ac_power_total
+sensor.furnace_power_total
 ```
 
 ---
@@ -887,13 +1000,9 @@ home-assistant-hvac-balancing/
 
 # Current Status
 
-The current controller is operational and has been field-tested primarily during **summer cooling conditions**.
+The v1.2 controller is operational and currently being observed under real-world summer conditions.
 
-This release should be considered:
-
-> **v1.1.0 — Three-bedroom Summer / Cooling Balancing**
-
-The physical balancing system now includes:
+The active system includes:
 
 ```text
 Bed 1 Booster
@@ -902,51 +1011,55 @@ Bed 2 Booster
        +
 Bed 3 Booster
        +
-Central HVAC blower assistance when required
+Active PI-Lite Balancing
+       +
+Central Nest Blower Second-Stage Assist
+       +
+HVAC Power Monitoring
 ```
 
-The Kitchen remains the reference temperature.
+The Kitchen remains the main room-balancing temperature reference.
 
 ---
 
-## Current Implementation Checklist
+# Current Implementation Checklist
 
-### Summer / Cooling
+## Summer / Cooling
 
-- [x] Matching Zigbee 3.0 temperature sensors in Kitchen, Bed 1, Bed 2, and Bed 3
+- [x] Matching temperature sensors in Kitchen, Bed 1, Bed 2, and Bed 3
 - [x] Kitchen reference temperature
-- [x] Bed 1 temperature monitoring
-- [x] Bed 2 temperature monitoring
-- [x] Bed 3 temperature monitoring
 - [x] Three bedroom temperature-delta sensors
-- [x] Directional cooling/heating error architecture
-- [x] Three independent calculated booster targets
-- [x] Three effective-percentage monitoring sensors
-- [x] Dynamic booster speed control
-- [x] Ten-level booster capability
-- [x] Summer speed curve tuned from real-world data
+- [x] Directional cooling/heating control architecture
+- [x] Three independent Base P targets
+- [x] 0.2°F proportional hysteresis
+- [x] Three independent Adaptive I controllers
+- [x] 20-minute performance-reference windows
+- [x] Adaptive correction based on measured improvement
+- [x] Anti-windup at Speed 10
+- [x] Final PI target sensors
+- [x] Effective-percentage sensors
+- [x] Active balancing while COOL/HEAT mode remains selected even when HVAC is idle
 - [x] Minimum Speed 1 while HVAC is actively heating or cooling
-- [x] Central blower assistance starting at Speed 4
-- [x] Bed 3 participation in central blower demand
-- [x] 0.2°F hysteresis
-- [x] Five-minute post-circulation across all three rooms
+- [x] Nest second-stage assist at PI Target >= 8
+- [x] Five-minute Nest circulation release delay
 - [x] Home Assistant restart recovery
 - [x] Hourly desired-state reconciliation
 - [x] Xtend Tuya command validation
-- [x] Xtend Tuya feedback diagnostics
-- [x] ApexCharts historical monitoring
-- [x] HVAC electrical monitoring
-- [x] Real-world summer operation validated
+- [x] HVAC power monitoring
+- [x] Multi-panel Plotly dashboard
+- [x] Fan-speed history visualization
+- [x] Compact TV dashboard
+- [x] Full-screen diagnostic dashboard
+- [x] Real-world summer operation in progress
 
-### Winter / Heating
+## Winter / Heating
 
 - [ ] Winter thermal behavior measured
+- [ ] Heating-specific adaptive behavior validated
 - [ ] Basement temperature monitoring re-established for winter testing
-- [ ] Basement temperature imbalance characterized
+- [ ] Basement imbalance characterized
 - [ ] Basement booster evaluated
-- [ ] Basement booster installed if required
-- [ ] Heating-specific control thresholds validated
-- [ ] Heating-specific booster curve tuned
+- [ ] Heating-specific thresholds tuned if required
 - [ ] Central circulation strategy validated for heating
 - [ ] Interaction between upstairs and basement balancing tested
 - [ ] Winter energy impact measured
@@ -956,121 +1069,72 @@ The Kitchen remains the reference temperature.
 
 # Future Development
 
-The next major phase is to evolve the current summer controller into a:
+## Longer-Term PI Performance Validation
 
-> **Season-aware whole-house HVAC balancing system**
+The adaptive controller should be evaluated over longer periods using metrics such as:
 
-Cooling and heating produce different thermal patterns in the house, so the long-term objective is not simply to reuse the summer curve during winter.
+- Average bedroom ΔT
+- Maximum daily ΔT
+- Time above 1.5°F imbalance
+- Time above 2.0°F imbalance
+- Average equalization time
+- Adaptive steps added per room
+- Booster runtime per room
+- Nest circulation runtime
+- Compressor runtime
+- Percentage of time within desired tolerance
 
-Each operating mode should eventually have its own experimentally validated control strategy.
-
----
-
-## Phase 2 — Winter / Heating Balancing
-
-The expected winter thermal problem is approximately the opposite of summer.
-
-### Summer
-
-```text
-Upstairs bedrooms too warm
-            │
-            ▼
-Increase conditioned airflow upstairs
-```
-
-### Winter
-
-```text
-Basement too cold
-        │
-        ▼
-Increase warm airflow downstairs
-```
-
-A possible future architecture is:
-
-```text
-                         HVAC MODE
-                            │
-                 ┌──────────┴──────────┐
-                 │                     │
-              COOLING               HEATING
-                 │                     │
-                 ▼                     ▼
-       Upstairs balancing       Basement balancing
-                 │                     │
-          Bed 1 Booster          Basement Booster
-          Bed 2 Booster                │
-          Bed 3 Booster                │
-                 │                     │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                     Central Blower
-```
-
-The basement will require dedicated temperature monitoring again before this phase can be characterized and tuned.
+These metrics can help determine whether the current 20-minute adaptive window and improvement thresholds are optimal.
 
 ---
 
-## Independent Room Control Curves
+## Independent Room Tuning
 
-Version 1.1 intentionally gives Bed 1, Bed 2, and Bed 3 the same control curve.
+All three bedrooms currently use the same Base P and Adaptive I rules.
 
-Future versions may tune each room independently because rooms differ in:
+Future versions may tune rooms independently because they differ in:
 
 - Duct length
 - Register size
 - Room volume
 - Exterior exposure
-- Window area
 - Solar load
 - Insulation
 - Return-air path
-- Distance from the blower
-
-Historical performance can then determine whether a specific bedroom benefits from a different response curve.
+- Distance from the central blower
 
 ---
 
-## Command Verification
+## Winter / Heating Balancing
 
-If future Xtend Tuya versions provide reliable device feedback, the controller could evolve from desired-state control toward automatic command verification.
+The next seasonal phase is to validate the architecture under winter heating conditions.
+
+The expected house behavior may be approximately the opposite of summer:
 
 ```text
-Desired Speed
-      │
-      ▼
-Send Command
-      │
-      ▼
-Read Device Feedback
-      │
-   ┌──┴───┐
-   │      │
- Match  Mismatch
-   │      │
-   ▼      ▼
- Done   Retry / Alert
+SUMMER
+Upstairs bedrooms too warm
+        ↓
+Increase airflow upstairs
+
+WINTER
+Basement too cold
+        ↓
+Potentially increase airflow downstairs
 ```
 
-This could allow detection of:
-
-- Failed commands
-- Offline boosters
-- Unexpected mode changes
-- Stuck fan states
-- Communication failures
+A future whole-house version may include dedicated basement sensing and booster control.
 
 ---
 
 ## Occupancy-Aware Balancing
 
-Room occupancy could eventually become another input to the balancing strategy.
+Occupancy could eventually become another input:
 
 ```text
 Temperature Demand
+        +
+PI Performance
         +
 HVAC State
         +
@@ -1080,75 +1144,13 @@ Occupancy
 Airflow Priority
 ```
 
-This could reduce unnecessary balancing in unused rooms while prioritizing occupied bedrooms.
-
----
-
-## Nighttime Comfort Profile
-
-Sleeping periods may justify a dedicated control profile with:
-
-- Tighter bedroom temperature tolerance
-- More aggressive occupied-bedroom balancing
-- Different booster noise limits
-- Reduced balancing for unused areas
-- Different central blower thresholds
-
----
-
-## Outdoor Temperature Compensation
-
-Future logic could use outdoor conditions to dynamically modify:
-
-- Booster thresholds
-- Maximum booster speed
-- Central circulation threshold
-- Expected equalization time
-
-A 2°F room difference during mild weather may behave very differently from the same difference during extreme summer heat or winter cold.
-
----
-
-## Adaptive Controller Tuning
-
-The current thresholds were manually tuned using historical data.
-
-A future version could record each balancing event:
-
-```text
-Starting ΔT
-Booster speed
-Central blower state
-Outdoor temperature
-HVAC state
-Equalization time
-Final ΔT
-```
-
-Over time, Home Assistant could estimate which airflow strategy produces the best equalization rate for each room.
-
----
-
-## Equalization Performance Metrics
-
-Future sensors could calculate objective metrics such as:
-
-- Average bedroom ΔT
-- Maximum daily ΔT
-- Time above 1.5°F imbalance
-- Time above 2.0°F imbalance
-- Average equalization time
-- Booster runtime per room
-- Central blower balancing runtime
-- Percentage of time within target tolerance
-
-These metrics would make controller versions easier to compare quantitatively.
+This could reduce unnecessary balancing in unused rooms.
 
 ---
 
 ## Energy Optimization
 
-A future controller could combine:
+Future versions could directly compare:
 
 ```text
 Temperature imbalance
@@ -1157,17 +1159,17 @@ Booster activity
         +
 Central blower consumption
         +
-Compressor activity
+Compressor consumption
 ```
 
-with the optimization objective:
+with the objective:
 
 > **Maintain acceptable room balance using the least additional energy.**
 
-Possible strategies could include:
+Possible decisions could include:
 
 - Booster only
-- Booster + central blower
+- Booster + central circulation
 - Wait for the next HVAC cycle
 - Higher airflow for a shorter period
 - Lower airflow for a longer period
@@ -1176,27 +1178,27 @@ Possible strategies could include:
 
 # Long-Term Goal
 
-The long-term objective is a controller capable of determining:
+The long-term objective is a season-aware controller capable of determining:
 
 1. Which rooms are outside the desired thermal balance
-2. Whether the HVAC is cooling, heating, or idle
-3. Which rooms need additional airflow
-4. What booster speed is required
-5. Whether central blower assistance is useful
-6. When circulation should stop
-7. Whether the selected strategy actually reduced the imbalance
-8. Whether another strategy could achieve the same comfort using less energy
+2. Which direction requires correction
+3. What proportional airflow is appropriate
+4. Whether the current airflow is actually correcting the imbalance
+5. Whether adaptive correction is necessary
+6. Whether central circulation is useful
+7. When correction should unwind or stop
+8. Whether another strategy could deliver equal comfort using less energy
 
 Conceptually:
 
 ```text
 Room Temperatures
         +
-HVAC Operating State
+HVAC Operating Mode
         +
-Outdoor Conditions
+Measured Response
         +
-Occupancy
+Power Consumption
         +
 Historical Performance
         │
@@ -1204,25 +1206,25 @@ Historical Performance
    Home Assistant
         │
         ▼
-Season-Aware Balancing Strategy
+Adaptive Airflow Strategy
         │
-   ┌────┼────┬──────────┐
-   ▼    ▼    ▼          ▼
- Bed 1 Bed 2 Bed 3   Basement
-   │    │    │          │
-   └────┴────┼──────────┘
-             │
-             ▼
-        Central Blower
-             │
-             ▼
-        Measure Result
-             │
-             ▼
-     Optimize Next Decision
+   ┌────┼────┐
+   ▼    ▼    ▼
+ Bed 1 Bed 2 Bed 3
+   │    │    │
+   └────┴────┘
+        │
+        ▼
+Optional Central Blower Assist
+        │
+        ▼
+Measure Result
+        │
+        ▼
+Optimize Next Decision
 ```
 
-The v1.1 three-bedroom controller is the current working stage toward that architecture.
+v1.2 is the first production step in which the controller evaluates not only **how large the imbalance is**, but also **whether the selected airflow is actually fixing it**.
 
 ---
 

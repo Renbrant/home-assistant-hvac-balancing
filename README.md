@@ -796,6 +796,8 @@ The current live dashboard exposes:
 - Historical temperature deltas
 - Historical fan-speed percentages
 
+- ![Dashboard](Photos/dashboard.png)
+
 ---
 
 ## Plotly Multi-Panel Dashboard

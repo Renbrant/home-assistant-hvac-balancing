@@ -491,7 +491,7 @@ sections:
             legend: legend4
             mode: lines
             line:
-              width: 2
+              width: 1
               color: yellow
               shape: hv
           - entity: sensor.bed_2_booster_effective_percentage
@@ -500,7 +500,7 @@ sections:
             legend: legend4
             mode: lines
             line:
-              width: 2
+              width: 1
               color: orange
               shape: hv
           - entity: sensor.bed_3_booster_effective_percentage
@@ -509,9 +509,45 @@ sections:
             legend: legend4
             mode: lines
             line:
-              width: 2
+              width: 1
               color: green
               shape: hv
+          - entity: sensor.bed_1_booster_adaptive_boost
+            name: B1 Adap
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 1
+              color: yellow
+              shape: hv
+              dash: dot
+            filters:
+              - map_y_numbers: y * 10
+          - entity: sensor.bed_2_booster_adaptive_boost
+            name: B2 Adap
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 1
+              color: orange
+              shape: hv
+              dash: dot
+            filters:
+              - map_y_numbers: y * 10
+          - entity: sensor.bed_3_booster_adaptive_boost
+            name: B3 Adap
+            yaxis: y1
+            legend: legend4
+            mode: lines
+            line:
+              width: 1
+              color: green
+              shape: hv
+              dash: dot
+            filters:
+              - map_y_numbers: y * 10
         card_mod:
           style: |
             ha-card {

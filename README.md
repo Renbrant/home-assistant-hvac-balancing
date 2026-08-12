@@ -1,6 +1,6 @@
 # Home Assistant HVAC Balancing
 
-![Home Assistant HVAC Balancing](Photos/home-assistant-hvac-balancing.png)
+![Home Assistant HVAC Balancing](Photos/home-assistant-hvac-balancing2.png)
 
 A smart HVAC room-balancing system built with **Home Assistant**, independent Zigbee temperature sensors, smart register booster fans, Nest central blower control, adaptive PI-lite logic, and live power monitoring.
 

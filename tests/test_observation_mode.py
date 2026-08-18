@@ -177,3 +177,66 @@ def test_dashboard_contains_python_observation_metrics() -> None:
 
     for entity_id in expected:
         assert entity_id in dashboard
+
+def test_observation_timing_diagnostics_exist() -> None:
+    """Verify clock, ticks, and Adaptive countdown entities exist."""
+
+    observation = read("observation.py")
+    sensor = read("sensor.py")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    assert "_async_timeline_heartbeat" in observation
+    assert "second=range(0, 60, 10)" in observation
+    assert "self.last_adaptive_tick = now" in observation
+    assert "_timeline_listeners" in observation
+
+    expected_sensor_markers = (
+        "HVACBalancingTimelineSensor",
+        "HVACBalancingAdaptiveWindowSensor",
+        '"current_time"',
+        '"last_controller_update"',
+        '"last_controller_event"',
+        '"last_adaptive_tick"',
+        '"next_adaptive_tick"',
+        '"next_tick_in"',
+        "ADAPTIVE_INTERVAL_SECONDS = 1200",
+    )
+
+    for marker in expected_sensor_markers:
+        assert marker in sensor
+
+    expected_entities = (
+        "sensor.hvac_balancing_test_current_time",
+        "sensor.hvac_balancing_test_last_controller_update",
+        "sensor.hvac_balancing_test_last_controller_event",
+        "sensor.hvac_balancing_test_last_adaptive_tick",
+        "sensor.hvac_balancing_test_next_adaptive_tick",
+        "sensor.hvac_balancing_test_next_adaptive_tick_in",
+        "sensor.hvac_balancing_test_bed_1_adaptive_window",
+        "sensor.hvac_balancing_test_bed_2_adaptive_window",
+        "sensor.hvac_balancing_test_bed_3_adaptive_window",
+    )
+
+    for entity_id in expected_entities:
+        assert entity_id in dashboard
+
+
+def test_timeline_heartbeat_cannot_recalculate_controller() -> None:
+    """Protect controller state from display heartbeat updates."""
+
+    observation = read("observation.py")
+
+    start = observation.index(
+        "def _async_timeline_heartbeat"
+    )
+
+    end = observation.index(
+        "def _state_value",
+        start,
+    )
+
+    heartbeat = observation[start:end]
+
+    assert "_recalculate(" not in heartbeat
+    assert "calculate_zone(" not in heartbeat
+    assert "ControllerEvent." not in heartbeat

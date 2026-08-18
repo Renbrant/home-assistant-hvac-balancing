@@ -92,12 +92,20 @@ class HVACBalancingObservationRuntime:
 
         self.snapshot: ObservationSnapshot | None = None
 
+        # Display-only timing state.
+        #
+        # The heartbeat updates Test Bench timing entities but never executes
+        # calculate_zone() and never mutates Adaptive controller state.
+        self.display_now: datetime = dt_util.now()
+        self.last_adaptive_tick: datetime | None = None
+
         self._zone_states: dict[str, ZoneState] = {
             zone.key: ZoneState()
             for zone in TEST_BENCH_ZONES
         }
 
         self._listeners: set[Callable[[], None]] = set()
+        self._timeline_listeners: set[Callable[[], None]] = set()
         self._unsubscribers: list[Callable[[], None]] = []
 
     @property
@@ -142,6 +150,16 @@ class HVACBalancingObservationRuntime:
             )
         )
 
+        # Display-only heartbeat. This updates clocks/countdowns but does not
+        # produce a ControllerEvent and does not recalculate any zone.
+        self._unsubscribers.append(
+            async_track_time_change(
+                self.hass,
+                self._async_timeline_heartbeat,
+                second=range(0, 60, 10),
+            )
+        )
+
         self._recalculate(
             ControllerEvent.STARTUP,
             dt_util.now(),
@@ -156,6 +174,7 @@ class HVACBalancingObservationRuntime:
 
         self._unsubscribers.clear()
         self._listeners.clear()
+        self._timeline_listeners.clear()
 
     @callback
     def async_add_listener(
@@ -169,6 +188,21 @@ class HVACBalancingObservationRuntime:
         @callback
         def remove_listener() -> None:
             self._listeners.discard(listener)
+
+        return remove_listener
+
+    @callback
+    def async_add_timeline_listener(
+        self,
+        listener: Callable[[], None],
+    ) -> Callable[[], None]:
+        """Subscribe only to display timeline updates."""
+
+        self._timeline_listeners.add(listener)
+
+        @callback
+        def remove_listener() -> None:
+            self._timeline_listeners.discard(listener)
 
         return remove_listener
 
@@ -215,10 +249,24 @@ class HVACBalancingObservationRuntime:
     ) -> None:
         """Run the five-minute Adaptive I trigger."""
 
+        self.last_adaptive_tick = now
+
         self._recalculate(
             ControllerEvent.ADAPTIVE_TICK,
             now,
         )
+
+    @callback
+    def _async_timeline_heartbeat(
+        self,
+        now: datetime,
+    ) -> None:
+        """Refresh display clocks without running controller logic."""
+
+        self.display_now = now
+
+        for listener in tuple(self._timeline_listeners):
+            listener()
 
     def _state_value(
         self,
@@ -240,6 +288,8 @@ class HVACBalancingObservationRuntime:
         now: datetime,
     ) -> None:
         """Calculate every virtual zone without commanding equipment."""
+
+        self.display_now = now
 
         thermostat_state = self.hass.states.get(
             TEST_BENCH_THERMOSTAT
@@ -325,4 +375,7 @@ class HVACBalancingObservationRuntime:
         )
 
         for listener in tuple(self._listeners):
+            listener()
+
+        for listener in tuple(self._timeline_listeners):
             listener()

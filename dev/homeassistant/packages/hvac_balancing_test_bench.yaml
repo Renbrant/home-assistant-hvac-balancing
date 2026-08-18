@@ -105,6 +105,27 @@ input_number:
     initial: 0
 
 # ----------------------------------------------------------------------------
+# Guided validation status
+#
+# Scenario scripts update these helpers so screenshots show exactly which
+# validation step is active and what result is expected.
+# ----------------------------------------------------------------------------
+
+input_text:
+
+  hvac_test_active_validation_scenario:
+    name: HVAC Test Active Validation Scenario
+    icon: mdi:flask-outline
+    max: 120
+    initial: Manual / None
+
+  hvac_test_expected_validation_result:
+    name: HVAC Test Expected Validation Result
+    icon: mdi:check-decagram-outline
+    max: 255
+    initial: Select a guided validation scenario.
+
+# ----------------------------------------------------------------------------
 # Availability and internal state
 #
 # Availability toggles allow deterministic fault injection.
@@ -798,3 +819,334 @@ script:
       - action: input_boolean.turn_off
         target:
           entity_id: input_boolean.hvac_test_bed_2_sensor_available
+
+  # --------------------------------------------------------------------------
+  # Guided validation preparation
+  #
+  # Force a true mode transition through OFF so Base P and Adaptive state can
+  # start from a deterministic controller condition.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_prepare:
+    alias: HVAC Test Validation - Prepare Fresh Controller State
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: "off"
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75.2
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.4
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75.1
+
+      - delay:
+          milliseconds: 300
+
+  # --------------------------------------------------------------------------
+  # Guided hysteresis sequence
+  #
+  # Run these five scripts IN ORDER.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_hysteresis_1_reset:
+    alias: "Validation Hysteresis 1/5 - Reset at 76.4"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_validation_prepare
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 1/5 - Reset at 76.4F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 0. Fresh state below 1.5F rising threshold."
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+  hvac_test_validation_hysteresis_2_rise:
+    alias: "Validation Hysteresis 2/5 - Rise to 76.5"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 2/5 - Rise to 76.5F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 2. Crossing 1.5F rising threshold."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.5
+
+  hvac_test_validation_hysteresis_3_confirm:
+    alias: "Validation Hysteresis 3/5 - Confirm at 76.6"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 3/5 - Confirm at 76.6F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P remains 2."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.6
+
+  hvac_test_validation_hysteresis_4_hold:
+    alias: "Validation Hysteresis 4/5 - Hold at 76.4"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 4/5 - Return to 76.4F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P must HOLD at 2. This proves hysteresis."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.4
+
+  hvac_test_validation_hysteresis_5_release:
+    alias: "Validation Hysteresis 5/5 - Release at 76.3"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 5/5 - Release at 76.3F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 0. Falling threshold reached at 1.3F."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.3
+
+  # --------------------------------------------------------------------------
+  # Guided Adaptive I / issue #3 sequence
+  #
+  # Scenario 1 starts a fresh 20-minute observation window.
+  # Scenarios 2 and 3 change compressor action only while HVAC mode stays cool.
+  # The Bed 2 Adaptive countdown must NOT restart.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_adaptive_1_start:
+    alias: "Validation Adaptive 1/3 - Fresh Persistent Error"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_validation_prepare
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 78
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 1/3 - Fresh persistent Bed 2 error"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 Base=8 I=0 PI=8. Adaptive Window starts near 20:00. HVAC Cooling."
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+  hvac_test_validation_adaptive_2_idle:
+    alias: "Validation Adaptive 2/3 - Cooling to Idle"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 2/3 - Cooling to Idle"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "HVAC becomes Idle. Bed2 Adaptive Window countdown MUST continue, not reset."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 74
+
+  hvac_test_validation_adaptive_3_cooling:
+    alias: "Validation Adaptive 3/3 - Idle to Cooling"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 3/3 - Idle to Cooling"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "HVAC returns Cooling. Same Bed2 Adaptive countdown must continue. At due tick I should become 1."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+  # --------------------------------------------------------------------------
+  # Guided fault validation
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_sensor_failure:
+    alias: "Validation Fault - Bed 2 Sensor Failure"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_scenario_bed_2_sensor_failure
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Fault - Bed 2 Sensor Unavailable"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 temperature unavailable; Base=0 PI=0 Effective=0%. Other zones continue."
+
+  hvac_test_validation_sensor_recovery:
+    alias: "Validation Fault - Restore Bed 2 Sensor"
+    mode: restart
+    sequence:
+
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.hvac_test_bed_2_sensor_available
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Fault Recovery - Bed 2 Sensor Restored"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 temperature returns and controller resumes normal calculation."

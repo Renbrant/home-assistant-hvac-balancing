@@ -229,3 +229,109 @@ def test_thermostat_and_reference_temperatures_are_separate() -> None:
         "input_number.hvac_test_kitchen_temperature"
         in dashboard
     )
+
+def test_guided_validation_status_helpers_exist() -> None:
+    """Verify screenshots can identify active scenario and expectation."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    expected = (
+        "input_text.hvac_test_active_validation_scenario",
+        "input_text.hvac_test_expected_validation_result",
+    )
+
+    for entity_id in expected:
+        assert entity_id in package
+        assert entity_id in dashboard
+
+
+def test_guided_hysteresis_sequence_exists() -> None:
+    """Verify the complete five-step hysteresis sequence exists."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    scripts = (
+        "hvac_test_validation_hysteresis_1_reset",
+        "hvac_test_validation_hysteresis_2_rise",
+        "hvac_test_validation_hysteresis_3_confirm",
+        "hvac_test_validation_hysteresis_4_hold",
+        "hvac_test_validation_hysteresis_5_release",
+    )
+
+    for script in scripts:
+        assert f"{script}:" in package
+        assert f"script.{script}" in dashboard
+
+    for temperature in (
+        "value: 76.5",
+        "value: 76.6",
+        "value: 76.4",
+        "value: 76.3",
+    ):
+        assert temperature in package
+
+
+def test_guided_adaptive_issue_3_sequence_exists() -> None:
+    """Verify cooling-idle-cooling can be reproduced with one-click scripts."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    scripts = (
+        "hvac_test_validation_adaptive_1_start",
+        "hvac_test_validation_adaptive_2_idle",
+        "hvac_test_validation_adaptive_3_cooling",
+    )
+
+    for script in scripts:
+        assert f"{script}:" in package
+        assert f"script.{script}" in dashboard
+
+    idle_start = package.index(
+        "hvac_test_validation_adaptive_2_idle:"
+    )
+
+    cooling_start = package.index(
+        "hvac_test_validation_adaptive_3_cooling:"
+    )
+
+    fault_start = package.index(
+        "hvac_test_validation_sensor_failure:"
+    )
+
+    idle_block = package[
+        idle_start:
+        cooling_start
+    ]
+
+    cooling_block = package[
+        cooling_start:
+        fault_start
+    ]
+
+    # Critical issue #3 invariant:
+    # these steps change thermostat measured temperature only.
+    # They must NOT change the climate HVAC mode.
+    assert "climate.set_hvac_mode" not in idle_block
+    assert "climate.set_hvac_mode" not in cooling_block
+
+    assert "value: 74" in idle_block
+    assert "value: 76.5" in cooling_block
+
+
+def test_guided_fault_scenarios_exist() -> None:
+    """Verify fault and recovery can be reproduced by scripts."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    expected = (
+        "hvac_test_validation_sensor_failure",
+        "hvac_test_validation_sensor_recovery",
+    )
+
+    for script in expected:
+        assert f"{script}:" in package
+        assert f"script.{script}" in dashboard

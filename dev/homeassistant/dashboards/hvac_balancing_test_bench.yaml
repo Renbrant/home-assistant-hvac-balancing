@@ -138,7 +138,53 @@ views:
             name: Bed 3 Booster Available
 
       - type: entities
-        title: Preset Test Scenarios
+        title: Validation Status
+        show_header_toggle: false
+        entities:
+
+          - entity: input_text.hvac_test_active_validation_scenario
+            name: Active Scenario
+
+          - entity: input_text.hvac_test_expected_validation_result
+            name: Expected Result
+
+      - type: entities
+        title: Guided Validation - Hysteresis
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_hysteresis_1_reset
+
+          - script.hvac_test_validation_hysteresis_2_rise
+
+          - script.hvac_test_validation_hysteresis_3_confirm
+
+          - script.hvac_test_validation_hysteresis_4_hold
+
+          - script.hvac_test_validation_hysteresis_5_release
+
+      - type: entities
+        title: Guided Validation - Adaptive I
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_adaptive_1_start
+
+          - script.hvac_test_validation_adaptive_2_idle
+
+          - script.hvac_test_validation_adaptive_3_cooling
+
+      - type: entities
+        title: Guided Validation - Fault Handling
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_sensor_failure
+
+          - script.hvac_test_validation_sensor_recovery
+
+      - type: entities
+        title: Core Test Scenarios
         show_header_toggle: false
         entities:
 
@@ -155,6 +201,38 @@ views:
           - script.hvac_test_restore_availability
 
           - script.hvac_test_reset_virtual_boosters
+
+      - type: entities
+        title: Controller Timing
+        show_header_toggle: false
+        entities:
+
+          - entity: sensor.hvac_balancing_test_current_time
+            name: Current Time
+
+          - entity: sensor.hvac_balancing_test_last_controller_update
+            name: Last Controller Update
+
+          - entity: sensor.hvac_balancing_test_last_controller_event
+            name: Last Controller Event
+
+          - entity: sensor.hvac_balancing_test_last_adaptive_tick
+            name: Last 5-Minute Tick
+
+          - entity: sensor.hvac_balancing_test_next_adaptive_tick
+            name: Next 5-Minute Tick
+
+          - entity: sensor.hvac_balancing_test_next_adaptive_tick_in
+            name: Next Tick In
+
+          - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
+            name: Bed 1 - 20-Min Window
+
+          - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
+            name: Bed 2 - 20-Min Window
+
+          - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
+            name: Bed 3 - 20-Min Window
 
       - type: markdown
         title: Python Controller - Observation Only

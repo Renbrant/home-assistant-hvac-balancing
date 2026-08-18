@@ -1,0 +1,14 @@
+{
+  "title": "HVAC Balancing",
+  "config": {
+    "step": {
+      "user": {
+        "title": "HVAC Balancing",
+        "description": "Create the v0.2.0 development integration entry. This Phase 1 skeleton does not control HVAC equipment."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HVAC Balancing instance can be configured."
+    }
+  }
+}

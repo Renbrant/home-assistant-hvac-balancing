@@ -1,0 +1,20 @@
+# ============================================================================
+# HVAC Balancing development environment
+#
+# MERGE these sections into /config/configuration.yaml.
+# Do not create duplicate "homeassistant:" or "lovelace:" top-level keys.
+# ============================================================================
+
+homeassistant:
+  packages: !include_dir_named packages
+
+lovelace:
+  dashboards:
+
+    hvac-test-bench:
+      mode: yaml
+      filename: hvac_balancing_test_bench.yaml
+      title: HVAC Test Bench
+      icon: mdi:hvac
+      show_in_sidebar: true
+      require_admin: true

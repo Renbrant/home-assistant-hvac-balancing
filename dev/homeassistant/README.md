@@ -26,9 +26,9 @@ The Test Bench simulates:
 - Central cooling thermostat
 - AC compressor
 - Central blower
-- Bed 1 booster
-- Bed 2 booster
-- Bed 3 booster
+- Bed 1 booster with explicit Speed 0-10 control
+- Bed 2 booster with explicit Speed 0-10 control
+- Bed 3 booster with explicit Speed 0-10 control
 - sensor availability failures
 - actuator availability failures
 - repeatable test scenarios

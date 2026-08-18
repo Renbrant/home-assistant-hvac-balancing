@@ -62,17 +62,72 @@ def test_virtual_core_entities_are_defined() -> None:
 
 
 def test_virtual_boosters_model_real_control_surface() -> None:
-    """Verify virtual boosters expose percentage and preset concepts."""
+    """Verify virtual boosters model physical Speed 0 through 10."""
 
     package = PACKAGE.read_text(encoding="utf-8")
 
-    assert "speed_count: 10" in package
-    assert "set_percentage:" in package
+    for bed in (1, 2, 3):
+        assert (
+            f"hvac_test_bed_{bed}_booster_speed:"
+            in package
+        )
+
+    assert package.count("speed_count: 10") == 3
+    assert package.count("set_percentage:") == 3
+
+    assert "booster_percentage" not in package
+    assert "booster_state" not in package
+
+    assert "* 10" in package
+    assert "/ 10" in package
+
     assert "preset_modes:" in package
     assert "- FAN" in package
     assert "- COOL" in package
     assert "- HEAT" in package
     assert "- SLEEP" in package
+
+
+def test_virtual_booster_speed_range_is_zero_to_ten() -> None:
+    """Verify 0=OFF and physical speeds 1 through 10."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+
+    for bed in (1, 2, 3):
+        marker = (
+            f"hvac_test_bed_{bed}_booster_speed:"
+        )
+
+        start = package.index(marker)
+        end = package.find("\n\n", start)
+
+        assert end > start
+
+        block = package[start:end]
+
+        assert "min: 0" in block
+        assert "max: 10" in block
+        assert "step: 1" in block
+        assert "initial: 0" in block
+
+
+def test_dashboard_exposes_booster_speed_zero_to_ten() -> None:
+    """Verify explicit physical speed sliders exist."""
+
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    assert "Virtual Booster Speed Controls" in dashboard
+
+    for bed in (1, 2, 3):
+        assert (
+            f"input_number.hvac_test_bed_{bed}_booster_speed"
+            in dashboard
+        )
+
+        assert (
+            f"Bed {bed} Speed - 0 to 10"
+            in dashboard
+        )
 
 
 def test_fault_injection_controls_exist() -> None:

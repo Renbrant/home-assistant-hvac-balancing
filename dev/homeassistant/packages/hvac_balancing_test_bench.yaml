@@ -64,38 +64,45 @@ input_number:
     unit_of_measurement: "°F"
 
 # ----------------------------------------------------------------------------
-# Virtual booster percentage storage
+# Virtual booster speed storage
 #
-# The real booster system uses 10 effective speed steps.
-# We therefore expose 0-100% in 10% increments.
+# Physical booster control surface:
+#
+#   Speed 0  = OFF
+#   Speed 1  = minimum airflow
+#   ...
+#   Speed 10 = maximum airflow
+#
+# Home Assistant fan entities expose speed as percentage, so the template fans
+# translate physical Speed 1-10 into HA percentages 10-100%.
 # ----------------------------------------------------------------------------
 
-  hvac_test_bed_1_booster_percentage:
-    name: HVAC Test Bed 1 Booster Stored Percentage
+  hvac_test_bed_1_booster_speed:
+    name: HVAC Test Bed 1 Booster Speed
+    icon: mdi:fan
     min: 0
-    max: 100
-    step: 10
+    max: 10
+    step: 1
     mode: slider
-    initial: 20
-    unit_of_measurement: "%"
+    initial: 0
 
-  hvac_test_bed_2_booster_percentage:
-    name: HVAC Test Bed 2 Booster Stored Percentage
+  hvac_test_bed_2_booster_speed:
+    name: HVAC Test Bed 2 Booster Speed
+    icon: mdi:fan
     min: 0
-    max: 100
-    step: 10
+    max: 10
+    step: 1
     mode: slider
-    initial: 20
-    unit_of_measurement: "%"
+    initial: 0
 
-  hvac_test_bed_3_booster_percentage:
-    name: HVAC Test Bed 3 Booster Stored Percentage
+  hvac_test_bed_3_booster_speed:
+    name: HVAC Test Bed 3 Booster Speed
+    icon: mdi:fan
     min: 0
-    max: 100
-    step: 10
+    max: 10
+    step: 1
     mode: slider
-    initial: 20
-    unit_of_measurement: "%"
+    initial: 0
 
 # ----------------------------------------------------------------------------
 # Availability and internal state
@@ -153,18 +160,6 @@ input_boolean:
     name: HVAC Test Bed 3 Booster Available
     initial: true
     icon: mdi:check-network
-
-  hvac_test_bed_1_booster_state:
-    name: HVAC Test Bed 1 Booster Internal State
-    initial: false
-
-  hvac_test_bed_2_booster_state:
-    name: HVAC Test Bed 2 Booster Internal State
-    initial: false
-
-  hvac_test_bed_3_booster_state:
-    name: HVAC Test Bed 3 Booster Internal State
-    initial: false
 
   hvac_test_central_blower_available:
     name: HVAC Test Central Blower Available
@@ -320,31 +315,47 @@ template:
         availability: >
           {{ is_state('input_boolean.hvac_test_bed_1_booster_available', 'on') }}
         state: >
-          {{ is_state('input_boolean.hvac_test_bed_1_booster_state', 'on') }}
+          {{
+            states('input_number.hvac_test_bed_1_booster_speed')
+            | int(0) > 0
+          }}
         speed_count: 10
         percentage: >
-          {% if is_state('input_boolean.hvac_test_bed_1_booster_state', 'on') %}
-            {{ states('input_number.hvac_test_bed_1_booster_percentage') | int(0) }}
-          {% else %}
-            0
-          {% endif %}
+          {{
+            (
+              states('input_number.hvac_test_bed_1_booster_speed')
+              | int(0)
+            ) * 10
+          }}
         turn_on:
-          - action: input_boolean.turn_on
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_1_booster_state
+              entity_id: input_number.hvac_test_bed_1_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_1_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
         turn_off:
-          - action: input_boolean.turn_off
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_1_booster_state
+              entity_id: input_number.hvac_test_bed_1_booster_speed
+            data:
+              value: 0
         set_percentage:
           - action: input_number.set_value
             target:
-              entity_id: input_number.hvac_test_bed_1_booster_percentage
+              entity_id: input_number.hvac_test_bed_1_booster_speed
             data:
-              value: "{{ percentage | int(0) }}"
-          - action: "input_boolean.turn_{{ 'on' if percentage | int(0) > 0 else 'off' }}"
-            target:
-              entity_id: input_boolean.hvac_test_bed_1_booster_state
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
         preset_modes:
           - FAN
           - COOL
@@ -366,31 +377,47 @@ template:
         availability: >
           {{ is_state('input_boolean.hvac_test_bed_2_booster_available', 'on') }}
         state: >
-          {{ is_state('input_boolean.hvac_test_bed_2_booster_state', 'on') }}
+          {{
+            states('input_number.hvac_test_bed_2_booster_speed')
+            | int(0) > 0
+          }}
         speed_count: 10
         percentage: >
-          {% if is_state('input_boolean.hvac_test_bed_2_booster_state', 'on') %}
-            {{ states('input_number.hvac_test_bed_2_booster_percentage') | int(0) }}
-          {% else %}
-            0
-          {% endif %}
+          {{
+            (
+              states('input_number.hvac_test_bed_2_booster_speed')
+              | int(0)
+            ) * 10
+          }}
         turn_on:
-          - action: input_boolean.turn_on
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_2_booster_state
+              entity_id: input_number.hvac_test_bed_2_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_2_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
         turn_off:
-          - action: input_boolean.turn_off
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_2_booster_state
+              entity_id: input_number.hvac_test_bed_2_booster_speed
+            data:
+              value: 0
         set_percentage:
           - action: input_number.set_value
             target:
-              entity_id: input_number.hvac_test_bed_2_booster_percentage
+              entity_id: input_number.hvac_test_bed_2_booster_speed
             data:
-              value: "{{ percentage | int(0) }}"
-          - action: "input_boolean.turn_{{ 'on' if percentage | int(0) > 0 else 'off' }}"
-            target:
-              entity_id: input_boolean.hvac_test_bed_2_booster_state
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
         preset_modes:
           - FAN
           - COOL
@@ -412,31 +439,47 @@ template:
         availability: >
           {{ is_state('input_boolean.hvac_test_bed_3_booster_available', 'on') }}
         state: >
-          {{ is_state('input_boolean.hvac_test_bed_3_booster_state', 'on') }}
+          {{
+            states('input_number.hvac_test_bed_3_booster_speed')
+            | int(0) > 0
+          }}
         speed_count: 10
         percentage: >
-          {% if is_state('input_boolean.hvac_test_bed_3_booster_state', 'on') %}
-            {{ states('input_number.hvac_test_bed_3_booster_percentage') | int(0) }}
-          {% else %}
-            0
-          {% endif %}
+          {{
+            (
+              states('input_number.hvac_test_bed_3_booster_speed')
+              | int(0)
+            ) * 10
+          }}
         turn_on:
-          - action: input_boolean.turn_on
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_3_booster_state
+              entity_id: input_number.hvac_test_bed_3_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_3_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
         turn_off:
-          - action: input_boolean.turn_off
+          - action: input_number.set_value
             target:
-              entity_id: input_boolean.hvac_test_bed_3_booster_state
+              entity_id: input_number.hvac_test_bed_3_booster_speed
+            data:
+              value: 0
         set_percentage:
           - action: input_number.set_value
             target:
-              entity_id: input_number.hvac_test_bed_3_booster_percentage
+              entity_id: input_number.hvac_test_bed_3_booster_speed
             data:
-              value: "{{ percentage | int(0) }}"
-          - action: "input_boolean.turn_{{ 'on' if percentage | int(0) > 0 else 'off' }}"
-            target:
-              entity_id: input_boolean.hvac_test_bed_3_booster_state
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
         preset_modes:
           - FAN
           - COOL

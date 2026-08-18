@@ -174,4 +174,3 @@ def test_thermostat_and_reference_temperatures_are_separate() -> None:
         "input_number.hvac_test_kitchen_temperature"
         in dashboard
     )
-

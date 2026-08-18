@@ -1,0 +1,279 @@
+{
+  "project": "Home Assistant HVAC Balancing",
+  "github_issue": 6,
+  "purpose": "Field-history baseline for Base P and Adaptive I calibration",
+  "collection_method": "Home Assistant REST History API",
+  "home_assistant": {
+    "version": "2026.8.2",
+    "time_zone": "America/Denver"
+  },
+  "window": {
+    "start_local": "2026-08-12 00:00:00 America/Denver",
+    "end_local": "2026-08-18 14:03:58 America/Denver",
+    "start_utc": "2026-08-12T06:00:00.000Z",
+    "end_utc": "2026-08-18T20:03:58.374Z",
+    "extracted_at_utc": "2026-08-18T20:04:08.554825Z"
+  },
+  "entities": {
+    "required_simple": [
+      "sensor.kitchen_temp_temperature",
+      "sensor.bed_1_temp_temperature",
+      "sensor.bed_2_temp_temperature",
+      "sensor.bed_3_temp_temperature",
+      "sensor.bed_1_temperature_delta",
+      "sensor.bed_2_temperature_delta",
+      "sensor.bed_3_temperature_delta",
+      "sensor.bed_1_booster_target_speed",
+      "sensor.bed_2_booster_target_speed",
+      "sensor.bed_3_booster_target_speed",
+      "sensor.bed_1_booster_effective_percentage",
+      "sensor.bed_2_booster_effective_percentage",
+      "sensor.bed_3_booster_effective_percentage"
+    ],
+    "optional_simple_present": [
+      "sensor.kitchen_temperature"
+    ],
+    "required_detailed": [
+      "sensor.bed_1_booster_adaptive_boost",
+      "sensor.bed_2_booster_adaptive_boost",
+      "sensor.bed_3_booster_adaptive_boost",
+      "sensor.bed_1_booster_pi_target_speed",
+      "sensor.bed_2_booster_pi_target_speed",
+      "sensor.bed_3_booster_pi_target_speed",
+      "climate.kitchen"
+    ],
+    "optional_power_present": [
+      "sensor.ac_power_total",
+      "sensor.furnace_power_total"
+    ],
+    "optional_missing_currently": []
+  },
+  "history_options": {
+    "simple": {
+      "minimal_response": true,
+      "no_attributes": true
+    },
+    "detailed": {
+      "minimal_response": false,
+      "no_attributes": false
+    },
+    "power": {
+      "minimal_response": true,
+      "no_attributes": true
+    }
+  },
+  "entity_row_counts": {
+    "sensor.kitchen_temp_temperature": 506,
+    "sensor.bed_1_temp_temperature": 491,
+    "sensor.bed_2_temp_temperature": 464,
+    "sensor.bed_3_temp_temperature": 483,
+    "sensor.bed_1_temperature_delta": 988,
+    "sensor.bed_2_temperature_delta": 961,
+    "sensor.bed_3_temperature_delta": 980,
+    "sensor.bed_1_booster_target_speed": 313,
+    "sensor.bed_2_booster_target_speed": 386,
+    "sensor.bed_3_booster_target_speed": 304,
+    "sensor.bed_1_booster_effective_percentage": 449,
+    "sensor.bed_2_booster_effective_percentage": 516,
+    "sensor.bed_3_booster_effective_percentage": 388,
+    "sensor.kitchen_temperature": 246,
+    "sensor.bed_1_booster_adaptive_boost": 128,
+    "sensor.bed_2_booster_adaptive_boost": 137,
+    "sensor.bed_3_booster_adaptive_boost": 85,
+    "sensor.bed_1_booster_pi_target_speed": 434,
+    "sensor.bed_2_booster_pi_target_speed": 516,
+    "sensor.bed_3_booster_pi_target_speed": 382,
+    "climate.kitchen": 759,
+    "sensor.ac_power_total": 18829,
+    "sensor.furnace_power_total": 15511
+  },
+  "validation": {
+    "required_entities_current": true,
+    "required_entities_with_history": true,
+    "missing_required_history": []
+  },
+  "normalization": {
+    "daily_segments": true,
+    "segment_start_state_retained": true,
+    "segment_start_state_clamped_to_segment_boundary_when_needed": true,
+    "duplicate_identical_history_records_removed": true,
+    "raw_api_responses_committed": false,
+    "power_output": "one-minute arithmetic summaries of recorded state-change values; not time-weighted energy integration"
+  },
+  "api_response_provenance": [
+    {
+      "size_bytes": 88728,
+      "sha256": "4f75cbdede50302e8d19f6150e7fd372ba320c6490ed69d1a3494a2bab28dde4",
+      "segment": 1,
+      "group": "simple",
+      "start_utc": "2026-08-12T06:00:00Z",
+      "end_utc": "2026-08-13T06:00:00Z"
+    },
+    {
+      "size_bytes": 137180,
+      "sha256": "16f8e529e8d923e850f6123168807fabb37bd6147a117e9b3126ced717031c5b",
+      "segment": 1,
+      "group": "detailed",
+      "start_utc": "2026-08-12T06:00:00Z",
+      "end_utc": "2026-08-13T06:00:00Z"
+    },
+    {
+      "size_bytes": 507407,
+      "sha256": "819ffcda1a78636177d0b80e8ea1116aaaa36d52f31adc1eec367ce21fa8e51c",
+      "segment": 1,
+      "group": "power",
+      "start_utc": "2026-08-12T06:00:00Z",
+      "end_utc": "2026-08-13T06:00:00Z"
+    },
+    {
+      "size_bytes": 72438,
+      "sha256": "3a5f39576f093118014c54d102204614e2b55d682d77949ccb96acd120d29083",
+      "segment": 2,
+      "group": "simple",
+      "start_utc": "2026-08-13T06:00:00Z",
+      "end_utc": "2026-08-14T06:00:00Z"
+    },
+    {
+      "size_bytes": 110198,
+      "sha256": "92dc17d3766974dc9203a426ef52e009246b8641d99edc848b56d43e6d7960a7",
+      "segment": 2,
+      "group": "detailed",
+      "start_utc": "2026-08-13T06:00:00Z",
+      "end_utc": "2026-08-14T06:00:00Z"
+    },
+    {
+      "size_bytes": 297244,
+      "sha256": "d3ca12193d2b3ba0d80a4d3beb2372c5a93a44f69beaa9bdbc18b72c69dfb1ff",
+      "segment": 2,
+      "group": "power",
+      "start_utc": "2026-08-13T06:00:00Z",
+      "end_utc": "2026-08-14T06:00:00Z"
+    },
+    {
+      "size_bytes": 76158,
+      "sha256": "2aafeeb63bfb67088544479309abf368be947c6bc6070f9e64c1e5daab72bd01",
+      "segment": 3,
+      "group": "simple",
+      "start_utc": "2026-08-14T06:00:00Z",
+      "end_utc": "2026-08-15T06:00:00Z"
+    },
+    {
+      "size_bytes": 123920,
+      "sha256": "6b6b59181bc05aabe284d5ff088c25fe99101840a31285a8966bd349cea09cda",
+      "segment": 3,
+      "group": "detailed",
+      "start_utc": "2026-08-14T06:00:00Z",
+      "end_utc": "2026-08-15T06:00:00Z"
+    },
+    {
+      "size_bytes": 419191,
+      "sha256": "8eb7cf118160606119a91526665e4125cfb2a0389d50a4ec9d3d61196b067e52",
+      "segment": 3,
+      "group": "power",
+      "start_utc": "2026-08-14T06:00:00Z",
+      "end_utc": "2026-08-15T06:00:00Z"
+    },
+    {
+      "size_bytes": 57909,
+      "sha256": "9f15946b7339c6152192994bdecad9ace884246ce83aaacfbf069b30201e9692",
+      "segment": 4,
+      "group": "simple",
+      "start_utc": "2026-08-15T06:00:00Z",
+      "end_utc": "2026-08-16T06:00:00Z"
+    },
+    {
+      "size_bytes": 99764,
+      "sha256": "1e2b8694b77653ed127ed1d543834cae6d96a80ee6351c21d3544b957730f13c",
+      "segment": 4,
+      "group": "detailed",
+      "start_utc": "2026-08-15T06:00:00Z",
+      "end_utc": "2026-08-16T06:00:00Z"
+    },
+    {
+      "size_bytes": 203268,
+      "sha256": "ac633af0e822d8a81a45ab7ee72e60716ee2cbf33c1604be881f34a26b1272fc",
+      "segment": 4,
+      "group": "power",
+      "start_utc": "2026-08-15T06:00:00Z",
+      "end_utc": "2026-08-16T06:00:00Z"
+    },
+    {
+      "size_bytes": 77457,
+      "sha256": "3f6dfe03d21c264ea2b841cd9dedeb8b1da81f9288b10c0d2864c9a3f1b2e7ac",
+      "segment": 5,
+      "group": "simple",
+      "start_utc": "2026-08-16T06:00:00Z",
+      "end_utc": "2026-08-17T06:00:00Z"
+    },
+    {
+      "size_bytes": 117972,
+      "sha256": "19ca16636b25622d907cb32ef6df37d558ef718679fc0e68591739f180520128",
+      "segment": 5,
+      "group": "detailed",
+      "start_utc": "2026-08-16T06:00:00Z",
+      "end_utc": "2026-08-17T06:00:00Z"
+    },
+    {
+      "size_bytes": 309310,
+      "sha256": "dd741f32d0ca8b21f8d84e09a553d7f0629ca0e18f73db4117f6bb1cdbd6b91c",
+      "segment": 5,
+      "group": "power",
+      "start_utc": "2026-08-16T06:00:00Z",
+      "end_utc": "2026-08-17T06:00:00Z"
+    },
+    {
+      "size_bytes": 91682,
+      "sha256": "f0f3cb3fbd371addb6618d9fe43fbdf48af1b2afa850697772bc3ce9f3c586ce",
+      "segment": 6,
+      "group": "simple",
+      "start_utc": "2026-08-17T06:00:00Z",
+      "end_utc": "2026-08-18T06:00:00Z"
+    },
+    {
+      "size_bytes": 156671,
+      "sha256": "c666fb8d51a72eebac7166d9019755085bdc1da8560867c8ff714ef58fa7d896",
+      "segment": 6,
+      "group": "detailed",
+      "start_utc": "2026-08-17T06:00:00Z",
+      "end_utc": "2026-08-18T06:00:00Z"
+    },
+    {
+      "size_bytes": 514302,
+      "sha256": "2c4a969f4c85e90071352b0d017178ccb96cac2fd89865cede367c93620f59f1",
+      "segment": 6,
+      "group": "power",
+      "start_utc": "2026-08-17T06:00:00Z",
+      "end_utc": "2026-08-18T06:00:00Z"
+    },
+    {
+      "size_bytes": 39909,
+      "sha256": "7c773db376c8dd1019c2b8b69d65dd2d23eb949ab9ff301be9158e851c12329e",
+      "segment": 7,
+      "group": "simple",
+      "start_utc": "2026-08-18T06:00:00Z",
+      "end_utc": "2026-08-18T20:03:58.374000Z"
+    },
+    {
+      "size_bytes": 43190,
+      "sha256": "5035398880f70f38019e0c973cbea5211134a2118452736b7ac1debf9f2bf553",
+      "segment": 7,
+      "group": "detailed",
+      "start_utc": "2026-08-18T06:00:00Z",
+      "end_utc": "2026-08-18T20:03:58.374000Z"
+    },
+    {
+      "size_bytes": 134192,
+      "sha256": "eb9bdd39f2a561466fc7d172d74c989e49c1fa83df74eb7dbc8fa6aedafe0d1e",
+      "segment": 7,
+      "group": "power",
+      "start_utc": "2026-08-18T06:00:00Z",
+      "end_utc": "2026-08-18T20:03:58.374000Z"
+    }
+  ],
+  "privacy": {
+    "full_home_assistant_database_copied": false,
+    "full_home_assistant_database_committed": false,
+    "unrelated_home_assistant_states_written_to_disk": false,
+    "access_token_committed": false
+  }
+}

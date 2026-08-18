@@ -1245,3 +1245,36 @@ Do not close large numbers of supply registers in an attempt to force air toward
 If system airflow, static pressure, or equipment limitations are uncertain, consult a qualified HVAC professional.
 
 This repository is intended as a reference and experimentation project rather than a universal HVAC configuration.
+
+---
+
+## Calibration methodology and field-data analysis
+
+Controller tuning is based on a documented quantitative field-data methodology
+rather than dashboard inspection alone.
+
+Documentation:
+
+- [HVAC calibration methodology](docs/HVAC_CALIBRATION_METHODOLOGY.md)
+- [August 12-18, 2026 quantitative baseline](data/field-history/2026-08-12_to_2026-08-18/analysis-summary.md)
+
+The methodology covers production history acquisition, one-minute history
+reconstruction, directional thermal error, error distributions, actuator
+saturation, Base P and PI response windows, Adaptive I reset diagnostics,
+central blower analysis, and before/after validation.
+
+No production tuning change should be made without a documented baseline and a
+post-change comparison.
+
+### Reproducible analysis tool
+
+The quantitative calibration methodology has a versioned reference
+implementation:
+
+- [HVAC baseline analyzer](analysis/analyze_hvac_baseline.py)
+
+Example:
+
+    py -3 analysis\analyze_hvac_baseline.py data\field-history\2026-08-12_to_2026-08-18
+
+Use `--format json` for machine-readable results.

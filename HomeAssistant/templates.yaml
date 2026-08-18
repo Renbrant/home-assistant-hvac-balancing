@@ -22,7 +22,7 @@
 #   0.2°F below each threshold before reducing speed.
 #
 # The calculated target-speed sensors do not include the minimum
-# Speed 1 used while the HVAC is actively heating or cooling.
+# Speed 1 used while the HVAC is actively cooling.
 #
 # That rule is applied by the automation. The effective-percentage
 # sensors below mirror the final speed that the automation intends
@@ -115,11 +115,9 @@
     # COOL:
     # Bedroom warmer than Kitchen creates demand.
     #
-    # HEAT:
-    # Bedroom cooler than Kitchen creates demand.
-    #
-    # HEAT_COOL:
-    # hvac_action determines the active direction.
+    # HEAT / HEAT_COOL:
+    # Bedroom boosters are intentionally disabled. Heating balancing
+    # is deferred until lower-floor boosters are installed.
     # ==========================================================
 
     - name: "Bed 1 Booster Target Speed"
@@ -128,7 +126,6 @@
         {% set room = states('sensor.bed_1_temp_temperature') | float(none) %}
         {% set kitchen = states('sensor.kitchen_temp_temperature') | float(none) %}
         {% set mode = states('climate.kitchen') %}
-        {% set action = state_attr('climate.kitchen', 'hvac_action') %}
         {% set previous = this.state | int(0) %}
 
         {% if room is none or kitchen is none %}
@@ -143,16 +140,6 @@
 
           {% if mode == 'cool' %}
             {% set error = room - kitchen %}
-
-          {% elif mode == 'heat' %}
-            {% set error = kitchen - room %}
-
-          {% elif mode == 'heat_cool' and action == 'cooling' %}
-            {% set error = room - kitchen %}
-
-          {% elif mode == 'heat_cool' and action == 'heating' %}
-            {% set error = kitchen - room %}
-
           {% else %}
             {% set error = 0 %}
           {% endif %}
@@ -242,7 +229,6 @@
         {% set room = states('sensor.bed_2_temp_temperature') | float(none) %}
         {% set kitchen = states('sensor.kitchen_temp_temperature') | float(none) %}
         {% set mode = states('climate.kitchen') %}
-        {% set action = state_attr('climate.kitchen', 'hvac_action') %}
         {% set previous = this.state | int(0) %}
 
         {% if room is none or kitchen is none %}
@@ -257,16 +243,6 @@
 
           {% if mode == 'cool' %}
             {% set error = room - kitchen %}
-
-          {% elif mode == 'heat' %}
-            {% set error = kitchen - room %}
-
-          {% elif mode == 'heat_cool' and action == 'cooling' %}
-            {% set error = room - kitchen %}
-
-          {% elif mode == 'heat_cool' and action == 'heating' %}
-            {% set error = kitchen - room %}
-
           {% else %}
             {% set error = 0 %}
           {% endif %}
@@ -352,7 +328,6 @@
         {% set room = states('sensor.bed_3_temp_temperature') | float(none) %}
         {% set kitchen = states('sensor.kitchen_temp_temperature') | float(none) %}
         {% set mode = states('climate.kitchen') %}
-        {% set action = state_attr('climate.kitchen', 'hvac_action') %}
         {% set previous = this.state | int(0) %}
 
         {% if room is none or kitchen is none %}
@@ -367,16 +342,6 @@
 
           {% if mode == 'cool' %}
             {% set error = room - kitchen %}
-
-          {% elif mode == 'heat' %}
-            {% set error = kitchen - room %}
-
-          {% elif mode == 'heat_cool' and action == 'cooling' %}
-            {% set error = room - kitchen %}
-
-          {% elif mode == 'heat_cool' and action == 'heating' %}
-            {% set error = kitchen - room %}
-
           {% else %}
             {% set error = 0 %}
           {% endif %}
@@ -458,7 +423,7 @@
     #   +
     #   adaptive correction
     #
-    # While HVAC is actively heating or cooling, Speed 1 remains
+    # While HVAC is actively cooling, Speed 1 remains
     # the minimum commanded booster speed.
 
     - name: "Bed 1 Booster Effective Percentage"
@@ -469,11 +434,14 @@
         {% set calculated =
           states('sensor.bed_1_booster_pi_target_speed') | int(0)
         %}
+        {% set mode = states('climate.kitchen') %}
         {% set hvac_action =
           state_attr('climate.kitchen', 'hvac_action')
         %}
 
-        {% if hvac_action in ['cooling', 'heating'] %}
+        {% if mode != 'cool' %}
+          0
+        {% elif hvac_action == 'cooling' %}
           {{ ([calculated, 1] | max) * 10 }}
         {% else %}
           {{ calculated * 10 }}
@@ -488,11 +456,14 @@
         {% set calculated =
           states('sensor.bed_2_booster_pi_target_speed') | int(0)
         %}
+        {% set mode = states('climate.kitchen') %}
         {% set hvac_action =
           state_attr('climate.kitchen', 'hvac_action')
         %}
 
-        {% if hvac_action in ['cooling', 'heating'] %}
+        {% if mode != 'cool' %}
+          0
+        {% elif hvac_action == 'cooling' %}
           {{ ([calculated, 1] | max) * 10 }}
         {% else %}
           {{ calculated * 10 }}
@@ -507,11 +478,14 @@
         {% set calculated =
           states('sensor.bed_3_booster_pi_target_speed') | int(0)
         %}
+        {% set mode = states('climate.kitchen') %}
         {% set hvac_action =
           state_attr('climate.kitchen', 'hvac_action')
         %}
 
-        {% if hvac_action in ['cooling', 'heating'] %}
+        {% if mode != 'cool' %}
+          0
+        {% elif hvac_action == 'cooling' %}
           {{ ([calculated, 1] | max) * 10 }}
         {% else %}
           {{ calculated * 10 }}
@@ -526,10 +500,10 @@
 # controller.
 #
 # IMPORTANT:
-# Adaptive balancing is based on thermostat MODE, not compressor
-# activity. In COOL mode a bedroom warmer than Kitchen creates
-# demand even while hvac_action is idle. In HEAT mode a bedroom
-# cooler than Kitchen creates demand even while hvac_action is idle.
+# Adaptive balancing is enabled only while the thermostat MODE is
+# COOL. A bedroom warmer than Kitchen creates demand even while
+# hvac_action is idle. Heating balancing is intentionally deferred
+# until lower-floor boosters are installed.
 #
 # The controller wakes every 5 minutes and evaluates the adaptive
 # correction approximately every 20 minutes.
@@ -541,14 +515,14 @@
 #   Improvement >= 0.5°F -> adaptive boost -1
 #
 # Adaptive reset:
-#   - thermostat mode changes / is not COOL or HEAT
+#   - thermostat mode leaves or enters COOL
 #   - temperature sensor becomes unavailable
 #   - directional error <= 1.3°F
 #
 # Anti-windup prevents final target from exceeding Speed 10.
 #
-# In HEAT_COOL mode, active hvac_action determines direction; while
-# idle, the most recently known heating/cooling direction is retained.
+# HEAT and HEAT_COOL intentionally produce no bedroom booster demand
+# in the current hardware configuration.
 # ==============================================================
 
 - triggers:
@@ -559,6 +533,7 @@
 
     - trigger: state
       entity_id: climate.kitchen
+      to: null
       id: hvac_mode_change
 
     - trigger: homeassistant
@@ -584,12 +559,6 @@
           states('sensor.kitchen_temp_temperature') | float(none)
         %}
         {% set mode = states('climate.kitchen') %}
-        {% set action =
-          state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% set previous_direction =
-          this.attributes.get('control_direction')
-        %}
         {% set base =
           states('sensor.bed_1_booster_target_speed') | int(0)
         %}
@@ -600,17 +569,10 @@
           this.attributes.get('last_evaluation')
         %}
 
-        {# Determine balancing direction from thermostat MODE,
-           not compressor activity. #}
+        {# Current hardware topology supports bedroom balancing
+           only while the thermostat is in COOL mode. #}
         {% if mode == 'cool' %}
           {% set direction = 'cooling' %}
-        {% elif mode == 'heat' %}
-          {% set direction = 'heating' %}
-        {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-          {% set direction = action %}
-        {% elif mode == 'heat_cool'
-              and previous_direction in ['cooling', 'heating'] %}
-          {% set direction = previous_direction %}
         {% else %}
           {% set direction = 'none' %}
         {% endif %}
@@ -703,21 +665,8 @@
 
         control_direction: >
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             cooling
-          {% elif mode == 'heat' %}
-            heating
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {{ action }}
-          {% elif mode == 'heat_cool' and old in ['cooling', 'heating'] %}
-            {{ old }}
           {% else %}
             none
           {% endif %}
@@ -730,22 +679,8 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -766,28 +701,17 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('reference_error')
           %}
           {% set last =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -844,25 +768,14 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -926,12 +839,6 @@
           states('sensor.kitchen_temp_temperature') | float(none)
         %}
         {% set mode = states('climate.kitchen') %}
-        {% set action =
-          state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% set previous_direction =
-          this.attributes.get('control_direction')
-        %}
         {% set base =
           states('sensor.bed_2_booster_target_speed') | int(0)
         %}
@@ -942,17 +849,10 @@
           this.attributes.get('last_evaluation')
         %}
 
-        {# Determine balancing direction from thermostat MODE,
-           not compressor activity. #}
+        {# Current hardware topology supports bedroom balancing
+           only while the thermostat is in COOL mode. #}
         {% if mode == 'cool' %}
           {% set direction = 'cooling' %}
-        {% elif mode == 'heat' %}
-          {% set direction = 'heating' %}
-        {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-          {% set direction = action %}
-        {% elif mode == 'heat_cool'
-              and previous_direction in ['cooling', 'heating'] %}
-          {% set direction = previous_direction %}
         {% else %}
           {% set direction = 'none' %}
         {% endif %}
@@ -1045,21 +945,8 @@
 
         control_direction: >
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             cooling
-          {% elif mode == 'heat' %}
-            heating
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {{ action }}
-          {% elif mode == 'heat_cool' and old in ['cooling', 'heating'] %}
-            {{ old }}
           {% else %}
             none
           {% endif %}
@@ -1072,22 +959,8 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -1108,28 +981,17 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('reference_error')
           %}
           {% set last =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -1186,25 +1048,14 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -1268,12 +1119,6 @@
           states('sensor.kitchen_temp_temperature') | float(none)
         %}
         {% set mode = states('climate.kitchen') %}
-        {% set action =
-          state_attr('climate.kitchen', 'hvac_action')
-        %}
-        {% set previous_direction =
-          this.attributes.get('control_direction')
-        %}
         {% set base =
           states('sensor.bed_3_booster_target_speed') | int(0)
         %}
@@ -1284,17 +1129,10 @@
           this.attributes.get('last_evaluation')
         %}
 
-        {# Determine balancing direction from thermostat MODE,
-           not compressor activity. #}
+        {# Current hardware topology supports bedroom balancing
+           only while the thermostat is in COOL mode. #}
         {% if mode == 'cool' %}
           {% set direction = 'cooling' %}
-        {% elif mode == 'heat' %}
-          {% set direction = 'heating' %}
-        {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-          {% set direction = action %}
-        {% elif mode == 'heat_cool'
-              and previous_direction in ['cooling', 'heating'] %}
-          {% set direction = previous_direction %}
         {% else %}
           {% set direction = 'none' %}
         {% endif %}
@@ -1387,21 +1225,8 @@
 
         control_direction: >
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             cooling
-          {% elif mode == 'heat' %}
-            heating
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {{ action }}
-          {% elif mode == 'heat_cool' and old in ['cooling', 'heating'] %}
-            {{ old }}
           {% else %}
             none
           {% endif %}
@@ -1414,22 +1239,8 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
-
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -1450,28 +1261,17 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('reference_error')
           %}
           {% set last =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}
@@ -1528,25 +1328,14 @@
             states('sensor.kitchen_temp_temperature') | float(none)
           %}
           {% set mode = states('climate.kitchen') %}
-          {% set action =
-            state_attr('climate.kitchen', 'hvac_action')
-          %}
+
           {% set old =
             this.attributes.get('last_evaluation')
           %}
-          {% set old_direction =
-            this.attributes.get('control_direction')
-          %}
+
 
           {% if mode == 'cool' %}
             {% set direction = 'cooling' %}
-          {% elif mode == 'heat' %}
-            {% set direction = 'heating' %}
-          {% elif mode == 'heat_cool' and action in ['cooling', 'heating'] %}
-            {% set direction = action %}
-          {% elif mode == 'heat_cool'
-                and old_direction in ['cooling', 'heating'] %}
-            {% set direction = old_direction %}
           {% else %}
             {% set direction = 'none' %}
           {% endif %}

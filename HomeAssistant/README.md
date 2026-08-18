@@ -2,10 +2,12 @@
 
 This directory contains the Home Assistant configuration used by the **Home Assistant HVAC Balancing** project.
 
-> **Current version: v1.2.0 — Active PI-Lite Thermal Balancing**
+> **Current development version: v0.1.2 — Active PI-Lite Thermal Balancing**
+> **Development status: Beta**
+> **Next planned maintenance version: v0.1.3**
 > The current controller is operational and is being field-tested primarily during summer / cooling conditions.
 
-Version 1.2 keeps the three-bedroom architecture introduced in v1.1 and adds an adaptive PI-lite control layer so the system can react not only to the current room-temperature imbalance, but also to **how quickly that imbalance is improving**.
+Version 0.1.2 keeps the three-bedroom architecture introduced in v0.1.1 and adds an adaptive PI-lite control layer so the system can react not only to the current room-temperature imbalance, but also to **how quickly that imbalance is improving**.
 
 The controller now uses:
 
@@ -37,13 +39,13 @@ The Home Assistant implementation is divided into three files:
 | `automation.yaml` | Commands the three booster fans and controls second-stage Nest circulation |
 | `dashboard.yaml` | Live monitoring, Plotly historical visualization, diagnostics, and tuning |
 
-The files are intended to be used together. In particular, **v1.2 `automation.yaml` depends on the new PI-target entities created by v1.2 `templates.yaml`**.
+The files are intended to be used together. In particular, **v0.1.2 `automation.yaml` depends on the new PI-target entities created by v0.1.2 `templates.yaml`**.
 
 ---
 
-# What Changed from v1.1
+# What Changed from v0.1.1
 
-Version 1.2 introduces several important behavioral changes:
+Version 0.1.2 introduces several important behavioral changes:
 
 - Added an independent adaptive correction for Bed 1, Bed 2, and Bed 3
 - Added approximately 20-minute performance-evaluation windows
@@ -107,8 +109,8 @@ Before replacing or merging any YAML:
 2. Confirm the entity IDs used by your installation.
 3. Install and test the three booster `fan` entities independently.
 4. Confirm all four temperature sensors report plausible values.
-5. Replace / merge `templates.yaml` before enabling the v1.2 automation.
-6. Do not run the v1.2 automation against the old v1.1 templates.
+5. Replace / merge `templates.yaml` before enabling the v0.1.2 automation.
+6. Do not run the v0.1.2 automation against the old v0.1.1 templates.
 
 If your entity IDs differ from those documented below, update the YAML before enabling the controller.
 
@@ -150,7 +152,7 @@ sensor.furnace_power_total
 
 # System Architecture
 
-The v1.2 control architecture is:
+The v0.1.2 control architecture is:
 
 ```text
                          Nest Thermostat
@@ -239,13 +241,13 @@ heating
 
 that action establishes the current control direction.
 
-When the thermostat remains in `heat_cool` but `hvac_action` becomes `idle`, v1.2 retains the most recently known heating/cooling direction. This allows thermal balancing to continue between compressor or furnace cycles instead of immediately dropping all balancing demand.
+When the thermostat remains in `heat_cool` but `hvac_action` becomes `idle`, v0.1.2 retains the most recently known heating/cooling direction. This allows thermal balancing to continue between compressor or furnace cycles instead of immediately dropping all balancing demand.
 
 ---
 
 # Active Thermal Balancing While HVAC Is Idle
 
-One of the most important v1.2 changes is that balancing is not limited to the moments when the compressor or furnace is actively running.
+One of the most important v0.1.2 changes is that balancing is not limited to the moments when the compressor or furnace is actively running.
 
 For example, while the thermostat remains in `COOL` mode:
 
@@ -292,7 +294,7 @@ If your Home Assistant installation already contains template entities, merge th
 
 After installation, reload template entities if your installation supports it, or restart Home Assistant.
 
-Then confirm all v1.2 calculated entities are available.
+Then confirm all v0.1.2 calculated entities are available.
 
 ---
 
@@ -322,7 +324,7 @@ Bedroom - Kitchen
 
 # 2. Base P — Proportional Target
 
-The original temperature-driven controller remains in v1.2 as the proportional component.
+The original temperature-driven controller remains in v0.1.2 as the proportional component.
 
 Entities:
 
@@ -332,7 +334,7 @@ sensor.bed_2_booster_target_speed
 sensor.bed_3_booster_target_speed
 ```
 
-These entity names are retained for compatibility, but in v1.2 they should be interpreted as:
+These entity names are retained for compatibility, but in v0.1.2 they should be interpreted as:
 
 > **Base P**
 
@@ -525,7 +527,7 @@ Adaptive I  = 2
 PI Target   = 8
 ```
 
-The **PI Target**, rather than Base P alone, is the main target used by the v1.2 automation.
+The **PI Target**, rather than Base P alone, is the main target used by the v0.1.2 automation.
 
 ---
 
@@ -602,7 +604,7 @@ The automation can be installed by:
 - Merging it into an existing `automations.yaml`
 - Using the installation's existing automation include strategy
 
-Before enabling it, verify the entity IDs and confirm the v1.2 PI-target sensors exist.
+Before enabling it, verify the entity IDs and confirm the v0.1.2 PI-target sensors exist.
 
 The automation controls:
 
@@ -693,7 +695,7 @@ Reported Tuya values should therefore be treated primarily as diagnostics.
 
 # Central Nest Blower — Second-Stage Assist
 
-Version 1.2 intentionally gives the local booster more opportunity to solve the imbalance before requesting whole-system airflow.
+Version 0.1.2 intentionally gives the local booster more opportunity to solve the imbalance before requesting whole-system airflow.
 
 Nest circulation is requested only when **any final PI target reaches Speed 8 or higher**:
 
@@ -782,7 +784,7 @@ so new demand during the five-minute delay prevents a stale shutdown decision fr
 
 # Automation Triggers and Reconciliation
 
-The v1.2 automation reacts to changes that can alter the desired final state, including:
+The v0.1.2 automation reacts to changes that can alter the desired final state, including:
 
 - Bed 1 PI target
 - Bed 2 PI target
@@ -879,7 +881,7 @@ Fan %
 
 # Plotly Multi-Panel Monitoring
 
-The v1.2 Plotly view uses four vertically stacked graphs sharing the same time axis.
+The v0.1.2 Plotly view uses four vertically stacked graphs sharing the same time axis.
 
 ## Graph 1 — HVAC Power
 
@@ -1093,7 +1095,7 @@ Directional error > threshold
 → booster may continue balancing
 ```
 
-This is intentional v1.2 behavior.
+This is intentional v0.1.2 behavior.
 
 ---
 
@@ -1170,18 +1172,18 @@ The controller should be able to recover from stale Tuya feedback without requir
 
 ---
 
-# Updating from v1.1 to v1.2
+# Updating from v0.1.1 to v0.1.2
 
-If upgrading an existing v1.1 installation, use this order:
+If upgrading an existing v0.1.1 installation, use this order:
 
 1. Back up the current configuration.
-2. Disable the existing v1.1 booster automation.
-3. Replace / merge `templates.yaml` with the v1.2 version.
+2. Disable the existing v0.1.1 booster automation.
+3. Replace / merge `templates.yaml` with the v0.1.2 version.
 4. Reload templates or restart Home Assistant.
 5. Confirm all new Adaptive I and PI-target entities exist.
-6. Replace / merge `automation.yaml` with the v1.2 version.
+6. Replace / merge `automation.yaml` with the v0.1.2 version.
 7. Verify entity IDs.
-8. Enable the v1.2 automation.
+8. Enable the v0.1.2 automation.
 9. Test each booster manually.
 10. Validate PI behavior and Nest second-stage assist.
 11. Update `dashboard.yaml` if the new monitoring interface is desired.
@@ -1268,7 +1270,7 @@ If improvement remains below approximately 0.2°F over 20 minutes, increasing Ad
 
 ## Nest Circulation Does Not Start at Base P 4 or 6
 
-This is expected in v1.2.
+This is expected in v0.1.2.
 
 The central blower threshold is now based on the **final PI Target**:
 
@@ -1276,13 +1278,13 @@ The central blower threshold is now based on the **final PI Target**:
 PI Target >= 8
 ```
 
-not the old v1.1 threshold of Base Target 4.
+not the old v0.1.1 threshold of Base Target 4.
 
 ---
 
 ## Booster Continues Running While `hvac_action` Is Idle
 
-This can also be expected in v1.2.
+This can also be expected in v0.1.2.
 
 If the thermostat remains in a valid balancing mode and the directional room error still requires correction, PI balancing can continue between active HVAC cycles.
 
@@ -1336,7 +1338,7 @@ If airflow requirements, static pressure, or equipment limitations are uncertain
 
 # Winter / Heating
 
-The v1.2 architecture includes directional heating logic, but the current tuning has been validated primarily during summer / cooling operation.
+The v0.1.2 architecture includes directional heating logic, but the current tuning has been validated primarily during summer / cooling operation.
 
 Heating should be considered a separate tuning phase.
 
@@ -1352,7 +1354,7 @@ Future winter work may include:
 
 ---
 
-# v1.2 Behavior Summary
+# v0.1.2 Behavior Summary
 
 The complete control path for each bedroom is:
 
@@ -1407,7 +1409,7 @@ Live re-check
 
 ---
 
-# Core v1.2 Entity Reference
+# Core v0.1.2 Entity Reference
 
 ## Temperatures
 

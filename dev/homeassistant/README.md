@@ -18,7 +18,8 @@ included in the normal HACS installation.
 
 The Test Bench simulates:
 
-- Kitchen/reference temperature
+- Thermostat internal temperature
+- Kitchen/reference Zigbee-equivalent temperature
 - Bed 1 temperature
 - Bed 2 temperature
 - Bed 3 temperature

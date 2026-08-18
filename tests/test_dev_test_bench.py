@@ -44,6 +44,7 @@ def test_virtual_core_entities_are_defined() -> None:
     package = PACKAGE.read_text(encoding="utf-8")
 
     expected = (
+        "sensor.hvac_test_thermostat_temperature",
         "sensor.hvac_test_kitchen_temperature",
         "sensor.hvac_test_bed_1_temperature",
         "sensor.hvac_test_bed_2_temperature",
@@ -80,6 +81,7 @@ def test_fault_injection_controls_exist() -> None:
     package = PACKAGE.read_text(encoding="utf-8")
 
     expected = (
+        "hvac_test_thermostat_sensor_available",
         "hvac_test_kitchen_sensor_available",
         "hvac_test_bed_1_sensor_available",
         "hvac_test_bed_2_sensor_available",
@@ -118,6 +120,7 @@ def test_dashboard_uses_virtual_entities() -> None:
     dashboard = DASHBOARD.read_text(encoding="utf-8")
 
     assert "HVAC Balancing Test Bench" in dashboard
+    assert "input_number.hvac_test_thermostat_temperature" in dashboard
     assert "input_number.hvac_test_kitchen_temperature" in dashboard
     assert "climate.hvac_test_thermostat" in dashboard
     assert "fan.hvac_test_bed_1_booster" in dashboard
@@ -148,3 +151,27 @@ def test_no_production_entity_ids_are_referenced() -> None:
 
     for entity_id in forbidden:
         assert entity_id not in text, entity_id
+
+def test_thermostat_and_reference_temperatures_are_separate() -> None:
+    """Thermostat measurement and balancing reference must be independent."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    assert (
+        "target_sensor: sensor.hvac_test_thermostat_temperature"
+        in package
+    )
+
+    assert "sensor.hvac_test_kitchen_temperature" in package
+
+    assert (
+        "input_number.hvac_test_thermostat_temperature"
+        in dashboard
+    )
+
+    assert (
+        "input_number.hvac_test_kitchen_temperature"
+        in dashboard
+    )
+

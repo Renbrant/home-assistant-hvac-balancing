@@ -13,6 +13,16 @@
 
 input_number:
 
+  hvac_test_thermostat_temperature:
+    name: HVAC Test Thermostat Temperature
+    icon: mdi:home-thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 75
+    unit_of_measurement: "?F"
+
   hvac_test_kitchen_temperature:
     name: HVAC Test Kitchen Temperature
     icon: mdi:thermometer
@@ -94,6 +104,11 @@ input_number:
 # ----------------------------------------------------------------------------
 
 input_boolean:
+
+  hvac_test_thermostat_sensor_available:
+    name: HVAC Test Thermostat Sensor Available
+    initial: true
+    icon: mdi:check-network
 
   hvac_test_kitchen_sensor_available:
     name: HVAC Test Kitchen Sensor Available
@@ -206,6 +221,18 @@ template:
   # --------------------------------------------------------------------------
 
   - sensor:
+
+      - name: HVAC Test Thermostat Temperature
+        default_entity_id: sensor.hvac_test_thermostat_temperature
+        unique_id: hvac_test_thermostat_temperature_sensor
+        icon: mdi:home-thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "?F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_thermostat_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_thermostat_temperature') | float(0) }}
 
       - name: HVAC Test Kitchen Temperature
         default_entity_id: sensor.hvac_test_kitchen_temperature
@@ -460,7 +487,7 @@ climate:
     name: HVAC Test Thermostat
     unique_id: hvac_test_thermostat
     heater: switch.hvac_test_ac_compressor
-    target_sensor: sensor.hvac_test_kitchen_temperature
+    target_sensor: sensor.hvac_test_thermostat_temperature
     ac_mode: true
     min_temp: 60
     max_temp: 85
@@ -487,6 +514,7 @@ script:
       - action: input_boolean.turn_on
         target:
           entity_id:
+            - input_boolean.hvac_test_thermostat_sensor_available
             - input_boolean.hvac_test_kitchen_sensor_available
             - input_boolean.hvac_test_bed_1_sensor_available
             - input_boolean.hvac_test_bed_2_sensor_available
@@ -516,6 +544,12 @@ script:
     sequence:
 
       - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 75
 
       - action: input_number.set_value
         target:
@@ -564,6 +598,12 @@ script:
 
       - action: input_number.set_value
         target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76
+
+      - action: input_number.set_value
+        target:
           entity_id: input_number.hvac_test_kitchen_temperature
         data:
           value: 75
@@ -609,6 +649,12 @@ script:
 
       - action: input_number.set_value
         target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+      - action: input_number.set_value
+        target:
           entity_id: input_number.hvac_test_kitchen_temperature
         data:
           value: 74
@@ -651,6 +697,12 @@ script:
     sequence:
 
       - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
 
       - action: input_number.set_value
         target:

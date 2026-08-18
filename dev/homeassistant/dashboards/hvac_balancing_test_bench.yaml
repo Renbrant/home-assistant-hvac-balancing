@@ -21,6 +21,9 @@ views:
         show_header_toggle: false
         entities:
 
+          - entity: input_number.hvac_test_thermostat_temperature
+            name: Thermostat Temperature
+
           - entity: input_number.hvac_test_kitchen_temperature
             name: Kitchen / Reference
 
@@ -44,6 +47,7 @@ views:
         state_color: true
         entities:
 
+          - sensor.hvac_test_thermostat_temperature
           - sensor.hvac_test_kitchen_temperature
           - sensor.hvac_test_bed_1_temperature
           - sensor.hvac_test_bed_2_temperature
@@ -54,6 +58,9 @@ views:
         show_header_toggle: false
         state_color: true
         entities:
+
+          - entity: input_boolean.hvac_test_thermostat_sensor_available
+            name: Thermostat Sensor Available
 
           - entity: input_boolean.hvac_test_kitchen_sensor_available
             name: Kitchen Sensor Available
@@ -156,8 +163,11 @@ views:
         content: |
           **Compressor cycle**
 
-          Keep HVAC mode on `cool`, then move Kitchen temperature above
+          Keep HVAC mode on `cool`, then move Thermostat Temperature above
           and below the thermostat target.
+
+          Kitchen / Reference remains independent and is used by the balancing
+          controller rather than by the virtual thermostat.
 
           Expected climate action sequence:
 

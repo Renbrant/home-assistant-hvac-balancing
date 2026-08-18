@@ -223,11 +223,16 @@ def _adaptive_boost(
 ) -> int:
     """Calculate the next v0.1.3 Adaptive I value."""
 
-    if (
-        not valid_temperatures
-        or hvac_mode != COOL_MODE
-        or error is None
-    ):
+    if hvac_mode != COOL_MODE:
+        return 0
+
+    # The v0.1.3 Adaptive I sensor is trigger-based. Ordinary temperature
+    # changes and hvac_action attribute changes do not execute its state
+    # machine. Preserve the stored Adaptive I value until an adaptive event.
+    if event == ControllerEvent.NORMAL_UPDATE:
+        return max(previous.adaptive_boost, 0)
+
+    if not valid_temperatures or error is None:
         return 0
 
     headroom = max(settings.max_speed - base_target, 0)
@@ -242,12 +247,6 @@ def _adaptive_boost(
 
     if error <= settings.adaptive_reset_error:
         return 0
-
-    # Normal entity/attribute updates may update Base P and the effective
-    # command, but they must never consume a 20-minute Adaptive I window.
-    # This explicitly protects cooling -> idle -> cooling transitions.
-    if event == ControllerEvent.NORMAL_UPDATE:
-        return current
 
     due = _evaluation_due(
         now,
@@ -287,11 +286,18 @@ def _updated_observation_history(
 ) -> tuple[float | None, datetime | None]:
     """Update reference_error and last_evaluation with v0.1.3 semantics."""
 
-    if (
-        not valid_temperatures
-        or hvac_mode != COOL_MODE
-        or error is None
-    ):
+    if hvac_mode != COOL_MODE:
+        return None, None
+
+    # NORMAL_UPDATE does not trigger the v0.1.3 Adaptive I template.
+    # Preserve both observation attributes exactly until an adaptive event.
+    if event == ControllerEvent.NORMAL_UPDATE:
+        return (
+            previous.reference_error,
+            previous.last_evaluation,
+        )
+
+    if not valid_temperatures or error is None:
         return None, None
 
     if error <= settings.adaptive_reset_error:
@@ -299,14 +305,6 @@ def _updated_observation_history(
 
     if event == ControllerEvent.HVAC_MODE_CHANGE:
         return round(error, 2), now
-
-    # Attribute-only / normal input updates must preserve the observation
-    # window. This is the regression invariant fixed by v0.1.3.
-    if event == ControllerEvent.NORMAL_UPDATE:
-        return (
-            previous.reference_error,
-            previous.last_evaluation,
-        )
 
     if previous.last_evaluation is None:
         return round(error, 2), now
@@ -397,14 +395,20 @@ def calculate_zone(
         )
     )
 
-    pi_target = min(
-        base_target + adaptive_boost,
-        settings.max_speed,
-    )
+    # Invalid temperature input is a deliberate v0.2 safety override.
+    # Stored Adaptive I may remain intact until its next scheduled evaluation,
+    # but no positive PI demand is exposed while input data is invalid.
+    if valid_temperatures and supported_mode:
+        pi_target = min(
+            base_target + adaptive_boost,
+            settings.max_speed,
+        )
+    else:
+        pi_target = 0
 
     effective_speed = 0
 
-    if supported_mode:
+    if valid_temperatures and supported_mode:
         effective_speed = pi_target
 
         if zone_input.hvac_action == COOLING_ACTION:
@@ -416,7 +420,8 @@ def calculate_zone(
     effective_percentage = effective_speed * 10
 
     balancing_active = (
-        supported_mode
+        valid_temperatures
+        and supported_mode
         and pi_target > 0
     )
 

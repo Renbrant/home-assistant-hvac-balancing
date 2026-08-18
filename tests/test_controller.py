@@ -208,10 +208,15 @@ class DirectionAndSafetyTests(unittest.TestCase):
         )
 
         self.assertFalse(decision.valid_temperatures)
+
+        # NORMAL_UPDATE does not execute the Adaptive I template.
+        self.assertEqual(decision.adaptive_boost, 2)
+        self.assertEqual(decision.reference_error, 3.0)
+        self.assertEqual(decision.last_evaluation, T0)
+
+        # v0.2 safety override: invalid temperatures cannot command airflow.
         self.assertEqual(decision.pi_target, 0)
         self.assertEqual(decision.effective_speed, 0)
-        self.assertIsNone(decision.reference_error)
-        self.assertIsNone(decision.last_evaluation)
 
     def test_invalid_reference_temperature_fails_safe(self) -> None:
         decision = zone(
@@ -221,6 +226,28 @@ class DirectionAndSafetyTests(unittest.TestCase):
 
         self.assertFalse(decision.valid_temperatures)
         self.assertEqual(decision.effective_percentage, 0)
+
+    def test_invalid_temperature_adaptive_tick_clears_state(self) -> None:
+        previous = ZoneState(
+            base_target=6,
+            adaptive_boost=2,
+            reference_error=2.6,
+            last_evaluation=T0,
+        )
+
+        decision = zone(
+            room="unavailable",
+            reference=75.0,
+            event=ControllerEvent.ADAPTIVE_TICK,
+            previous=previous,
+            now=T0 + timedelta(minutes=5),
+        )
+
+        self.assertEqual(decision.adaptive_boost, 0)
+        self.assertIsNone(decision.reference_error)
+        self.assertIsNone(decision.last_evaluation)
+        self.assertEqual(decision.pi_target, 0)
+        self.assertEqual(decision.effective_speed, 0)
 
     def test_nan_temperature_fails_safe(self) -> None:
         decision = zone(
@@ -466,7 +493,7 @@ class AdaptiveResetAndUnwindTests(unittest.TestCase):
         decision = zone(
             room=76.3,
             reference=75.0,
-            event=ControllerEvent.NORMAL_UPDATE,
+            event=ControllerEvent.ADAPTIVE_TICK,
             previous=previous,
             now=T0 + timedelta(minutes=5),
         )
@@ -474,6 +501,31 @@ class AdaptiveResetAndUnwindTests(unittest.TestCase):
         self.assertEqual(decision.adaptive_boost, 0)
         self.assertIsNone(decision.reference_error)
         self.assertIsNone(decision.last_evaluation)
+
+    def test_error_1_3_normal_update_preserves_adaptive_state(self) -> None:
+        previous = ZoneState(
+            base_target=2,
+            adaptive_boost=3,
+            reference_error=1.8,
+            last_evaluation=T0,
+        )
+
+        decision = zone(
+            room=76.3,
+            reference=75.0,
+            event=ControllerEvent.NORMAL_UPDATE,
+            previous=previous,
+            now=T0 + timedelta(minutes=1),
+        )
+
+        # Base P reacts immediately.
+        self.assertEqual(decision.base_target, 0)
+
+        # Adaptive I remains stored until the next adaptive trigger.
+        self.assertEqual(decision.adaptive_boost, 3)
+        self.assertEqual(decision.reference_error, 1.8)
+        self.assertEqual(decision.last_evaluation, T0)
+        self.assertEqual(decision.pi_target, 3)
 
     def test_1_4_holds_before_window_is_due(self) -> None:
         previous = ZoneState(
@@ -516,7 +568,7 @@ class AdaptiveResetAndUnwindTests(unittest.TestCase):
 
 class AntiWindupTests(unittest.TestCase):
 
-    def test_rising_base_clamps_existing_adaptive(self) -> None:
+    def test_normal_update_preserves_adaptive_when_base_rises(self) -> None:
         previous = ZoneState(
             base_target=4,
             adaptive_boost=4,
@@ -528,6 +580,30 @@ class AntiWindupTests(unittest.TestCase):
             room=78.1,
             reference=75.0,
             event=ControllerEvent.NORMAL_UPDATE,
+            previous=previous,
+            now=T0 + timedelta(minutes=1),
+        )
+
+        self.assertEqual(decision.base_target, 8)
+
+        # Adaptive template has not executed yet.
+        self.assertEqual(decision.adaptive_boost, 4)
+
+        # Final PI target remains protected by its Speed-10 cap.
+        self.assertEqual(decision.pi_target, 10)
+
+    def test_adaptive_tick_clamps_existing_adaptive_to_headroom(self) -> None:
+        previous = ZoneState(
+            base_target=4,
+            adaptive_boost=4,
+            reference_error=2.5,
+            last_evaluation=T0,
+        )
+
+        decision = zone(
+            room=78.1,
+            reference=75.0,
+            event=ControllerEvent.ADAPTIVE_TICK,
             previous=previous,
             now=T0 + timedelta(minutes=5),
         )
@@ -547,7 +623,7 @@ class AntiWindupTests(unittest.TestCase):
         decision = zone(
             room=78.5,
             reference=75.0,
-            event=ControllerEvent.NORMAL_UPDATE,
+            event=ControllerEvent.ADAPTIVE_TICK,
             previous=previous,
         )
 

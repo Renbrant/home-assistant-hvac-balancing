@@ -2,12 +2,12 @@
 
 This directory contains the Home Assistant configuration used by the **Home Assistant HVAC Balancing** project.
 
-> **Current development version: v0.1.2 — Active PI-Lite Thermal Balancing**
+> **Current development version: v0.1.3 — Cooling-Only PI-Lite Balancing**
 > **Development status: Beta**
-> **Next planned maintenance version: v0.1.3**
-> The current controller is operational and is being field-tested primarily during summer / cooling conditions.
+> **Next planned maintenance version: v0.1.4**
+> The current three-bedroom controller is operational and field-tested for cooling. Heating balancing is intentionally deferred until appropriate lower-floor boosters are installed.
 
-Version 0.1.2 keeps the three-bedroom architecture introduced in v0.1.1 and adds an adaptive PI-lite control layer so the system can react not only to the current room-temperature imbalance, but also to **how quickly that imbalance is improving**.
+Version 0.1.3 builds on the PI-lite controller introduced in v0.1.2, fixes unintended Adaptive I resets caused by thermostat attribute changes, and explicitly limits the installed bedroom actuators to cooling-mode balancing.
 
 The controller now uses:
 
@@ -39,30 +39,30 @@ The Home Assistant implementation is divided into three files:
 | `automation.yaml` | Commands the three booster fans and controls second-stage Nest circulation |
 | `dashboard.yaml` | Live monitoring, Plotly historical visualization, diagnostics, and tuning |
 
-The files are intended to be used together. In particular, **v0.1.2 `automation.yaml` depends on the new PI-target entities created by v0.1.2 `templates.yaml`**.
+The files are intended to be used together. In particular, **v0.1.3 `automation.yaml` depends on the PI-target entities and cooling-only control semantics provided by v0.1.3 `templates.yaml`**.
 
 ---
 
-# What Changed from v0.1.1
+# What Changed in v0.1.3
 
-Version 0.1.2 introduces several important behavioral changes:
+Version 0.1.3 is a corrective release for the PI-lite controller introduced in v0.1.2.
 
-- Added an independent adaptive correction for Bed 1, Bed 2, and Bed 3
-- Added approximately 20-minute performance-evaluation windows
-- Added `reference_error` and `last_evaluation` diagnostics
-- Added persistent control-direction tracking
-- Added final PI-target sensors for all three bedrooms
-- Balancing can continue between active HVAC cycles while the thermostat remains in `COOL` or `HEAT`
-- In `HEAT_COOL`, the last active heating/cooling direction is retained while HVAC is temporarily idle
-- The Nest central blower is no longer requested at Base Speed 4
-- Central circulation is now a second-stage assist starting at **PI Target 8 or higher**
-- The five-minute circulation-release logic now uses the final PI targets
-- Monitoring was redesigned around stacked Plotly graphs with a common time axis
-- AC electrical power and indoor blower / airflow power can be displayed directly
-- Effective booster percentage is graphed historically for all three rooms
+The main changes are:
+
+- Fixed unintended Adaptive I resets caused by attribute-only updates from `climate.kitchen`
+- The adaptive mode-change trigger now reacts only to actual thermostat HVAC-mode state changes
+- `reference_error` and `last_evaluation` are preserved through normal COOL compressor cycles
+- `cooling → idle → cooling` does not restart the approximately 20-minute adaptive observation window
+- Bedroom balancing is now explicitly limited to thermostat mode `COOL`
+- `HEAT`, `HEAT_COOL`, `OFF`, and other modes produce zero bedroom-booster demand
+- All three physical booster paths have a COOL-only safety gate in `automation.yaml`
+- Effective booster percentages report 0% outside COOL
+- Heating balancing is deferred until suitable Kitchen / Basement or other lower-floor actuators are available
+- Existing Base P, hysteresis, Adaptive I, anti-windup, PI targets, and second-stage Nest circulation remain active in COOL
+
+The reason for the cooling-only scope is physical, not merely software-related: the currently installed actuators are bedroom register boosters. They are appropriate for moving additional cool air toward warmer upstairs rooms, but they are not the correct actuators for solving a winter imbalance where lower floors may require more heat.
 
 ---
-
 # Requirements
 
 ## Required for the Controller
@@ -109,8 +109,8 @@ Before replacing or merging any YAML:
 2. Confirm the entity IDs used by your installation.
 3. Install and test the three booster `fan` entities independently.
 4. Confirm all four temperature sensors report plausible values.
-5. Replace / merge `templates.yaml` before enabling the v0.1.2 automation.
-6. Do not run the v0.1.2 automation against the old v0.1.1 templates.
+5. Replace / merge `templates.yaml` before enabling the v0.1.3 automation.
+6. Do not run the v0.1.3 automation against older templates that still implement HEAT / HEAT_COOL bedroom balancing.
 
 If your entity IDs differ from those documented below, update the YAML before enabling the controller.
 
@@ -152,7 +152,7 @@ sensor.furnace_power_total
 
 # System Architecture
 
-The v0.1.2 control architecture is:
+The v0.1.3 cooling-control architecture is:
 
 ```text
                          Nest Thermostat
@@ -194,12 +194,12 @@ The v0.1.2 control architecture is:
 All three bedrooms are controlled independently but share:
 
 - The Kitchen reference temperature
-- Thermostat operating direction
+- Thermostat COOL-mode state
 - Central Nest circulation decision
 
 ---
 
-# Thermostat Operating Direction
+# Thermostat Operating Scope
 
 The raw bedroom delta is always:
 
@@ -207,7 +207,11 @@ The raw bedroom delta is always:
 Bedroom Temperature - Kitchen Temperature
 ```
 
-The controller then converts that raw difference into a **directional control error**.
+The current controller converts that raw difference into balancing demand only when:
+
+```text
+climate.kitchen = cool
+```
 
 ## COOL Mode
 
@@ -217,39 +221,35 @@ Control Error = Bedroom - Kitchen
 
 A bedroom warmer than the Kitchen produces positive balancing demand.
 
-## HEAT Mode
+## Other Thermostat Modes
+
+For:
 
 ```text
-Control Error = Kitchen - Bedroom
+heat
+heat_cool
+off
 ```
 
-A bedroom colder than the Kitchen produces positive balancing demand.
-
-## HEAT_COOL Mode
-
-When `hvac_action` is actively:
+or any unsupported/unknown mode, the current bedroom controller produces:
 
 ```text
-cooling
+Base P      = 0
+Adaptive I  = 0
+PI Target   = 0
+Effective % = 0
 ```
 
-or:
+The physical bedroom boosters are therefore commanded OFF.
 
-```text
-heating
-```
-
-that action establishes the current control direction.
-
-When the thermostat remains in `heat_cool` but `hvac_action` becomes `idle`, v0.1.2 retains the most recently known heating/cooling direction. This allows thermal balancing to continue between compressor or furnace cycles instead of immediately dropping all balancing demand.
+Heating balancing is intentionally deferred. A future heating controller should be designed around actuators serving the areas that actually require additional winter airflow, expected to include lower-floor locations such as Kitchen and Basement.
 
 ---
-
 # Active Thermal Balancing While HVAC Is Idle
 
-One of the most important v0.1.2 changes is that balancing is not limited to the moments when the compressor or furnace is actively running.
+Balancing does not stop simply because the compressor becomes idle.
 
-For example, while the thermostat remains in `COOL` mode:
+While the thermostat remains in `COOL`:
 
 ```text
 Bedroom warmer than Kitchen
@@ -264,14 +264,24 @@ PI balancing remains active
 Bedroom booster may continue running
 ```
 
-This can redistribute already-conditioned air between HVAC cycles.
+This redistributes already-conditioned air between normal AC cycles.
 
-The same concept applies in `HEAT` mode with the control direction reversed.
+The `hvac_action` attribute still matters for the minimum Speed 1 rule:
 
-The `hvac_action` state still matters for one specific rule: the **minimum Speed 1 assistance while conditioned air is actively being produced**.
+```text
+COOL + cooling → minimum Speed 1
+COOL + idle    → normal PI target
+```
+
+Importantly, a normal:
+
+```text
+cooling → idle → cooling
+```
+
+transition does not reset Adaptive I because the thermostat HVAC mode itself remains `COOL`.
 
 ---
-
 # Installing `templates.yaml`
 
 The repository stores the project template definitions in:
@@ -294,7 +304,7 @@ If your Home Assistant installation already contains template entities, merge th
 
 After installation, reload template entities if your installation supports it, or restart Home Assistant.
 
-Then confirm all v0.1.2 calculated entities are available.
+Then confirm all v0.1.3 calculated entities are available.
 
 ---
 
@@ -324,7 +334,7 @@ Bedroom - Kitchen
 
 # 2. Base P — Proportional Target
 
-The original temperature-driven controller remains in v0.1.2 as the proportional component.
+The original temperature-driven controller remains in v0.1.3 as the proportional component.
 
 Entities:
 
@@ -334,7 +344,7 @@ sensor.bed_2_booster_target_speed
 sensor.bed_3_booster_target_speed
 ```
 
-These entity names are retained for compatibility, but in v0.1.2 they should be interpreted as:
+These entity names are retained for compatibility, but in v0.1.3 they should be interpreted as:
 
 > **Base P**
 
@@ -462,11 +472,23 @@ The adaptive term does not accumulate indefinitely.
 
 It is reset, limited, or unwound when appropriate, including when:
 
-- Thermostat control direction changes
+- The thermostat enters or leaves `COOL`
 - A required temperature sensor becomes unavailable
 - Directional error reaches approximately **1.3°F or less**
 - Base P already equals Speed 10 and there is no remaining headroom
 - Directional error is roughly **1.3°F to 1.5°F**, where Adaptive I unwinds one step per evaluation instead of continuing to accumulate
+
+Attribute-only changes on `climate.kitchen` do not restart the adaptive sample window.
+
+That includes normal changes such as:
+
+- `hvac_action: cooling → idle`
+- `hvac_action: idle → cooling`
+- thermostat-reported current-temperature updates
+- target-temperature attribute updates
+- other Nest attribute updates that do not change the main HVAC mode
+
+This distinction is the core correction in issue #3 and prevents the approximately 20-minute Adaptive I observation period from being repeatedly restarted.
 
 ---
 
@@ -527,7 +549,7 @@ Adaptive I  = 2
 PI Target   = 8
 ```
 
-The **PI Target**, rather than Base P alone, is the main target used by the v0.1.2 automation.
+The **PI Target**, rather than Base P alone, is the main target used by the v0.1.3 automation.
 
 ---
 
@@ -559,13 +581,7 @@ Normal speed-to-percentage mapping is:
 
 ## HVAC-Active Minimum Speed
 
-While the HVAC is actively heating or cooling:
-
-```text
-hvac_action = heating
-```
-
-or:
+While the thermostat is in `COOL` and the HVAC is actively cooling:
 
 ```text
 hvac_action = cooling
@@ -578,7 +594,9 @@ all three bedroom boosters use a minimum of:
 Conceptually:
 
 ```text
-if hvac_action is heating or cooling:
+if thermostat mode != COOL:
+    Effective Speed = 0
+elif hvac_action = cooling:
     Effective Speed = max(PI Target, 1)
 else:
     Effective Speed = PI Target
@@ -586,12 +604,11 @@ else:
 
 Important distinction:
 
-> The PI balancing target may remain active while `hvac_action` is idle.
+> The PI balancing target may remain active while `hvac_action` is idle, but only while the thermostat itself remains in `COOL`.
 
-The Speed 1 rule only guarantees minimum airflow while the central HVAC is actively producing conditioned air.
+Outside COOL, the effective bedroom-booster percentage is always 0%.
 
 ---
-
 # Installing `automation.yaml`
 
 The primary automation is:
@@ -604,7 +621,7 @@ The automation can be installed by:
 - Merging it into an existing `automations.yaml`
 - Using the installation's existing automation include strategy
 
-Before enabling it, verify the entity IDs and confirm the v0.1.2 PI-target sensors exist.
+Before enabling it, verify the entity IDs and confirm the v0.1.3 PI-target sensors exist.
 
 The automation controls:
 
@@ -695,7 +712,7 @@ Reported Tuya values should therefore be treated primarily as diagnostics.
 
 # Central Nest Blower — Second-Stage Assist
 
-Version 0.1.2 intentionally gives the local booster more opportunity to solve the imbalance before requesting whole-system airflow.
+Version 0.1.3 continues to give the local booster more opportunity to solve the imbalance before requesting whole-system airflow.
 
 Nest circulation is requested only when **any final PI target reaches Speed 8 or higher**:
 
@@ -784,13 +801,25 @@ so new demand during the five-minute delay prevents a stale shutdown decision fr
 
 # Automation Triggers and Reconciliation
 
-The v0.1.2 automation reacts to changes that can alter the desired final state, including:
+The v0.1.3 automation reacts to changes that can alter the desired final state, including:
 
 - Bed 1 PI target
 - Bed 2 PI target
 - Bed 3 PI target
 - Nest `hvac_action`
-- Thermostat operating mode
+- Actual thermostat HVAC-mode state changes
+
+The Adaptive I trigger intentionally distinguishes those two thermostat signals:
+
+```text
+HVAC mode state change
+    → may start a fresh adaptive control cycle
+
+hvac_action / other attribute-only change
+    → does not reset the Adaptive I window
+```
+
+The automation itself still watches `hvac_action` independently so physical booster commands can react immediately to active cooling versus idle operation.
 
 It also runs:
 
@@ -881,7 +910,7 @@ Fan %
 
 # Plotly Multi-Panel Monitoring
 
-The v0.1.2 Plotly view uses four vertically stacked graphs sharing the same time axis.
+The v0.1.3 Plotly view uses four vertically stacked graphs sharing the same time axis.
 
 ## Graph 1 — HVAC Power
 
@@ -1052,7 +1081,7 @@ PI Target 8 → 80%
 PI Target 10 → 100%
 ```
 
-While `hvac_action` is actively `cooling` or `heating`, verify a PI Target of 0 still produces the minimum:
+While the thermostat is in `COOL` and `hvac_action` is actively `cooling`, verify a PI Target of 0 still produces the minimum:
 
 ```text
 10%
@@ -1095,7 +1124,7 @@ Directional error > threshold
 → booster may continue balancing
 ```
 
-This is intentional v0.1.2 behavior.
+This is intentional v0.1.3 behavior.
 
 ---
 
@@ -1172,31 +1201,27 @@ The controller should be able to recover from stale Tuya feedback without requir
 
 ---
 
-# Updating from v0.1.1 to v0.1.2
+# Updating from v0.1.2 to v0.1.3
 
-If upgrading an existing v0.1.1 installation, use this order:
+Version v0.1.3 keeps the PI-lite entities introduced in v0.1.2 but changes important controller semantics.
 
-1. Back up the current configuration.
-2. Disable the existing v0.1.1 booster automation.
-3. Replace / merge `templates.yaml` with the v0.1.2 version.
-4. Reload templates or restart Home Assistant.
-5. Confirm all new Adaptive I and PI-target entities exist.
-6. Replace / merge `automation.yaml` with the v0.1.2 version.
-7. Verify entity IDs.
-8. Enable the v0.1.2 automation.
-9. Test each booster manually.
-10. Validate PI behavior and Nest second-stage assist.
-11. Update `dashboard.yaml` if the new monitoring interface is desired.
+The recommended update sequence is:
 
-Do not skip Step 5. The new automation expects:
+1. Back up the existing Home Assistant configuration.
+2. Disable the existing bedroom-booster automation.
+3. Replace / merge `templates.yaml` with the v0.1.3 version.
+4. Reload template entities or restart Home Assistant.
+5. Confirm the Base P, Adaptive I, PI-target, and effective-percentage entities are available.
+6. Confirm the bedroom PI targets and effective percentages are 0 outside `COOL`.
+7. Replace / merge `automation.yaml` with the v0.1.3 version.
+8. Verify the three booster entity IDs.
+9. Enable the v0.1.3 automation.
+10. Confirm `COOL + cooling` applies the minimum Speed 1 rule.
+11. Confirm `COOL + idle` preserves normal PI balancing.
+12. Confirm leaving `COOL` turns all three bedroom boosters OFF.
+13. Confirm normal `hvac_action` changes do not reset `reference_error` or `last_evaluation`.
 
-```text
-sensor.bed_1_booster_pi_target_speed
-sensor.bed_2_booster_pi_target_speed
-sensor.bed_3_booster_pi_target_speed
-```
-
-to exist.
+Do not retain the old v0.1.2 HEAT / HEAT_COOL bedroom-balancing behavior when installing v0.1.3.
 
 ---
 
@@ -1270,7 +1295,7 @@ If improvement remains below approximately 0.2°F over 20 minutes, increasing Ad
 
 ## Nest Circulation Does Not Start at Base P 4 or 6
 
-This is expected in v0.1.2.
+This is expected in v0.1.3.
 
 The central blower threshold is now based on the **final PI Target**:
 
@@ -1284,7 +1309,7 @@ not the old v0.1.1 threshold of Base Target 4.
 
 ## Booster Continues Running While `hvac_action` Is Idle
 
-This can also be expected in v0.1.2.
+This can also be expected in v0.1.3.
 
 If the thermostat remains in a valid balancing mode and the directional room error still requires correction, PI balancing can continue between active HVAC cycles.
 
@@ -1336,25 +1361,33 @@ If airflow requirements, static pressure, or equipment limitations are uncertain
 
 ---
 
-# Winter / Heating
+# Future Heating Balancing
 
-The v0.1.2 architecture includes directional heating logic, but the current tuning has been validated primarily during summer / cooling operation.
+Version v0.1.3 does not implement heating balancing with the bedroom boosters.
 
-Heating should be considered a separate tuning phase.
+This is intentional.
 
-Future winter work may include:
+The current physical actuators are located in the upstairs bedrooms and were selected to address the observed summer condition where those rooms become warmer than the Kitchen and lower floors.
 
-- Dedicated basement temperature monitoring
-- Basement booster evaluation
-- Heating-specific Base P thresholds
-- Heating-specific Adaptive I behavior
-- Heating-specific Nest circulation strategy
+A winter imbalance is expected to require a different actuator layout, potentially including dedicated lower-floor airflow control.
+
+Future heating work may include:
+
+- Dedicated Basement temperature monitoring
+- Basement booster installation / evaluation
+- Kitchen or other lower-floor booster evaluation
 - Whole-house winter airflow characterization
+- Heating-specific zone-priority logic
+- Heating-specific Base P design
+- Heating-specific Adaptive I design
+- Heating-specific Nest circulation strategy
 - Winter energy measurements
+- Field validation before heating control is enabled
+
+Heating support should therefore be implemented as a future multi-zone controller rather than by reversing the current bedroom-control direction.
 
 ---
-
-# v0.1.2 Behavior Summary
+# v0.1.3 Behavior Summary
 
 The complete control path for each bedroom is:
 
@@ -1409,7 +1442,7 @@ Live re-check
 
 ---
 
-# Core v0.1.2 Entity Reference
+# Core v0.1.3 Entity Reference
 
 ## Temperatures
 

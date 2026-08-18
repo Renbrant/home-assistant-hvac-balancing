@@ -2,11 +2,11 @@ alias: HVAC - Smart Bedroom Booster Control
 description: >
   Controls Bed 1, Bed 2 and Bed 3 register booster fans using active PI-lite
   thermal balancing. Bedroom boosters continue balancing while the thermostat is
-  in COOL or HEAT mode even when the compressor/furnace is idle. The original
+  in COOL mode even when the compressor is idle. Bedroom boosters are disabled outside COOL mode. The original
   temperature-delta target speed provides proportional demand, while the
   adaptive controller can progressively increase fan speed when the bedroom
   imbalance does not improve sufficiently over approximately 20-minute
-  intervals. When HVAC is actively heating or cooling, all boosters run at a
+  intervals. When HVAC is actively cooling, all boosters run at a
   minimum of Speed 1. Nest circulation is a second-stage assist and is requested
   only when any final PI target reaches Speed 8 or higher. Xtend Tuya feedback
   may remain stale, so commands are sent using the native fan entities.
@@ -21,6 +21,7 @@ triggers:
     attribute: hvac_action
   - trigger: state
     entity_id: climate.kitchen
+    to: null
   - trigger: time_pattern
     hours: /1
   - trigger: homeassistant
@@ -31,9 +32,11 @@ actions:
       bed_1_target: |
         {% set target =
           states('sensor.bed_1_booster_pi_target_speed') | int(0)
-        %} {% set action =
+        %} {% set mode = states('climate.kitchen') %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %} {% if action in ['cooling', 'heating'] %}
+        %} {% if mode != 'cool' %}
+          0
+        {% elif action == 'cooling' %}
           {{ [target, 1] | max }}
         {% else %}
           {{ target }}
@@ -41,9 +44,11 @@ actions:
       bed_2_target: |
         {% set target =
           states('sensor.bed_2_booster_pi_target_speed') | int(0)
-        %} {% set action =
+        %} {% set mode = states('climate.kitchen') %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %} {% if action in ['cooling', 'heating'] %}
+        %} {% if mode != 'cool' %}
+          0
+        {% elif action == 'cooling' %}
           {{ [target, 1] | max }}
         {% else %}
           {{ target }}
@@ -51,9 +56,11 @@ actions:
       bed_3_target: |
         {% set target =
           states('sensor.bed_3_booster_pi_target_speed') | int(0)
-        %} {% set action =
+        %} {% set mode = states('climate.kitchen') %} {% set action =
           state_attr('climate.kitchen', 'hvac_action')
-        %} {% if action in ['cooling', 'heating'] %}
+        %} {% if mode != 'cool' %}
+          0
+        {% elif action == 'cooling' %}
           {{ [target, 1] | max }}
         {% else %}
           {{ target }}
@@ -159,11 +166,15 @@ actions:
       - condition: template
         value_template: |
           {{
-            states('sensor.bed_1_booster_pi_target_speed') | int(0) < 8
-            and
-            states('sensor.bed_2_booster_pi_target_speed') | int(0) < 8
-            and
-            states('sensor.bed_3_booster_pi_target_speed') | int(0) < 8
+            states('climate.kitchen') != 'cool'
+            or
+            (
+              states('sensor.bed_1_booster_pi_target_speed') | int(0) < 8
+              and
+              states('sensor.bed_2_booster_pi_target_speed') | int(0) < 8
+              and
+              states('sensor.bed_3_booster_pi_target_speed') | int(0) < 8
+            )
           }}
       - action: climate.set_fan_mode
         target:

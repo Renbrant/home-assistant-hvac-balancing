@@ -6,46 +6,48 @@ A smart HVAC room-balancing system built with **Home Assistant**, independent Zi
 
 The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current development version: v0.1.2 — Active PI-Lite Thermal Balancing**
+> **Current development version: v0.1.3 — Cooling-Only PI-Lite Balancing**
 > **Development status: Beta**
-> **Next planned maintenance version: v0.1.3**
-> The system is operational and field-tested primarily during summer / cooling conditions.
+> **Next planned maintenance version: v0.1.4**
+> The current bedroom-balancing controller is operational and field-tested for cooling. Heating balancing is intentionally deferred until additional lower-floor boosters are installed.
 
 ---
 
-# Version 0.1.2
+# Version 0.1.3
 
-Version **v0.1.2** upgrades the three-bedroom controller from a fixed proportional airflow strategy to an **active PI-lite balancing controller**.
+Version **v0.1.3** is a corrective release for the active PI-lite controller introduced in v0.1.2.
 
-The original temperature-delta curve remains the proportional component (**Base P**), while a new adaptive component (**Adaptive I**) observes whether each bedroom imbalance is actually improving over time.
+The release fixes an important Adaptive I timing issue and aligns the software with the hardware topology that is actually installed and tested today.
 
-The final command becomes:
+## What's New in v0.1.3
+
+- Fixed issue #3: climate attribute-only changes no longer reset Adaptive I
+- Adaptive `reference_error` and `last_evaluation` can now survive normal Nest attribute updates
+- COOL `cooling → idle → cooling` cycles no longer restart the approximately 20-minute adaptive observation window
+- Thermostat HVAC-mode changes still start a fresh adaptive control cycle
+- Current bedroom balancing is now explicitly **COOL-only**
+- `HEAT` and `HEAT_COOL` produce no bedroom booster demand
+- All three physical booster command paths include a second COOL-mode safety gate
+- Effective booster-percentage sensors report 0% outside COOL
+- Heating balancing is deferred until appropriate boosters are available in lower-floor areas such as Kitchen and Basement
+- Existing Base P, Adaptive I, anti-windup, hysteresis, and Nest second-stage circulation behavior are preserved for COOL mode
+
+## Why Heating Is Deferred
+
+The currently installed boosters are located only in the upstairs bedrooms.
+
+That actuator layout is appropriate for summer balancing because the bedrooms tend to become warmer than the Kitchen and lower floors. Moving additional conditioned air toward the bedrooms can reduce that imbalance.
+
+Heating requires a different airflow strategy. During winter, the colder areas are expected to be lower in the house, particularly the Basement. Driving more warm air toward already-warm bedrooms would therefore be the wrong control action.
+
+Future heating support should be designed after additional actuators are installed in locations such as:
 
 ```text
-PI Target = Base P + Adaptive I
+Kitchen
+Basement
 ```
 
-with anti-windup limiting the final target to Speed 10.
-
-## What's New in v0.1.2
-
-- Added active PI-lite adaptive balancing for Bed 1, Bed 2, and Bed 3
-- Added independent adaptive correction for each bedroom
-- Added approximately 20-minute performance evaluation windows
-- Added adaptive response based on measured improvement rate
-- Added `reference_error` tracking for each room
-- Added `last_evaluation` tracking for each room
-- Added persistent control-direction tracking
-- Added final PI target-speed sensors
-- Active balancing now continues while the thermostat remains in `COOL` or `HEAT` mode even if the compressor or furnace is temporarily idle
-- In `HEAT_COOL` mode, the active HVAC direction is retained while the system is idle
-- Central Nest circulation changed from an early assist to a **second-stage assist**
-- Nest circulation now starts only when any final PI target reaches **Speed 8 or higher**
-- Updated five-minute central-fan release logic to use PI targets
-- Added multi-panel Plotly monitoring with a shared time axis
-- Added HVAC electrical power visualization using AC and indoor airflow/blower power
-- Added historical fan-speed percentage visualization for all three boosters
-- Added compact TV monitoring and full-screen diagnostic layouts
+Heating will then be treated as a separate multi-zone balancing problem rather than simply reversing the current bedroom-control error.
 
 ## Version History
 
@@ -54,9 +56,9 @@ with anti-windup limiting the final target to Speed 10.
 | **v0.1.0** | Initial production controller with Bed 1 and Bed 2 balancing |
 | **v0.1.1** | Added Bed 3 and expanded the controller to three independently controlled bedrooms |
 | **v0.1.2** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
+| **v0.1.3** | Fixed Adaptive I reset behavior and formalized the current controller as cooling-only |
 
 ---
-
 # The Problem
 
 Some rooms in the house consistently become warmer or cooler than others.
@@ -108,9 +110,11 @@ The Nest central blower is used only as a second-stage airflow assist when local
 
 The Nest thermostat continues to control normal heating and cooling.
 
-Home Assistant acts as an additional:
+The current Home Assistant bedroom-balancing layer is enabled only while the thermostat is in `COOL`. During `HEAT`, `HEAT_COOL`, `OFF`, or other modes, the bedroom boosters are commanded OFF by this controller.
 
-> **Active airflow-balancing control layer**
+Home Assistant therefore acts as an additional:
+
+> **Cooling airflow-balancing control layer**
 
 ---
 
@@ -344,45 +348,41 @@ sensor.bed_3_temperature_delta
 
 ---
 
-# Directional Control Error
+# Cooling Control Error
 
-The raw delta always represents:
+The raw bedroom delta always represents:
 
 ```text
 Bedroom - Kitchen
 ```
 
-but the balancing demand changes direction depending on thermostat mode.
-
-## COOL mode
+In the current controller, balancing demand is enabled only in `COOL` mode:
 
 ```text
 Control Error = Bedroom - Kitchen
 ```
 
-A warmer bedroom creates positive airflow demand.
+A bedroom warmer than the Kitchen produces positive balancing demand.
 
-## HEAT mode
+Outside `COOL`:
 
 ```text
-Control Error = Kitchen - Bedroom
+Base P      = 0
+Adaptive I  = 0
+PI Target   = 0
+Booster     = OFF
 ```
 
-A colder bedroom creates positive airflow demand.
+`HEAT` and `HEAT_COOL` are deliberately not interpreted as reversed bedroom-balancing directions in v0.1.3.
 
-## HEAT_COOL mode
-
-When `hvac_action` is actively `cooling` or `heating`, that action establishes the current direction.
-
-When the thermostat remains in `heat_cool` but becomes idle, v0.1.2 retains the most recently known heating/cooling direction so active thermal balancing can continue between compressor/furnace cycles.
+Heating support is reserved for a future controller with appropriate lower-floor actuators.
 
 ---
-
 # Active Thermal Balancing
 
-A major v0.1.2 change is that balancing is based primarily on **thermostat operating mode**, not only on active compressor/furnace runtime.
+Balancing is based on thermostat **mode**, not only on active compressor runtime.
 
-For example, while the Nest remains in `COOL` mode:
+While the Nest remains in `COOL`:
 
 ```text
 Bedroom warmer than Kitchen
@@ -394,18 +394,25 @@ Balancing demand remains active
 Bedroom booster may continue running
 ```
 
-This remains true even when:
+This remains true when:
 
 ```text
 hvac_action = idle
 ```
 
-That allows the system to continue redistributing already-conditioned air and can improve equalization between normal AC cycles.
+That behavior is intentional. It allows the controller to continue redistributing already-cooled air between normal compressor cycles.
 
-The same concept applies in `HEAT` mode with the error direction reversed.
+The transition:
+
+```text
+cooling → idle → cooling
+```
+
+does **not** reset Adaptive I while the thermostat itself remains in `COOL`.
+
+Leaving `COOL`, however, disables bedroom balancing and starts a fresh adaptive control cycle when COOL is entered again.
 
 ---
-
 # Base P — Proportional Controller
 
 The original temperature-based controller remains the proportional component of the new PI-lite architecture.
@@ -519,13 +526,24 @@ Result: room is responding well
 
 ## Adaptive Reset / Unwind Rules
 
-The adaptive correction is removed or reduced when appropriate:
+The adaptive correction is removed, restarted, limited, or unwound when appropriate:
 
-- Thermostat operating direction changes
-- A required temperature sensor is unavailable
+- The thermostat enters or leaves `COOL`
+- A required temperature sensor becomes unavailable
 - Directional error reaches **1.3°F or less**
 - Base P is already Speed 10 and no additional headroom exists
 - When the error is between roughly **1.3°F and 1.5°F**, the adaptive correction unwinds one step at each evaluation
+
+Normal climate attribute updates do **not** start a new adaptive window while the thermostat state remains `COOL`.
+
+Examples that no longer reset Adaptive I include:
+
+- `hvac_action` changing between `cooling` and `idle`
+- Nest-reported current temperature updates
+- Target-temperature attribute updates
+- Other attribute-only changes on `climate.kitchen`
+
+This preserves the intended approximately 20-minute measurement window.
 
 ## Anti-Windup
 
@@ -593,25 +611,30 @@ Speed 10 → 100%
 
 ## HVAC-Active Minimum Speed
 
-When the HVAC is actively heating or cooling, all three boosters run at a minimum of:
+While the thermostat is in `COOL` and the HVAC is actively cooling:
+
+```text
+hvac_action = cooling
+```
+
+all three bedroom boosters use a minimum of:
 
 > **Speed 1 / 10%**
 
 Conceptually:
 
 ```text
-if hvac_action = cooling or heating:
+if thermostat mode != COOL:
+    Effective Speed = 0
+elif hvac_action = cooling:
     Effective Speed = max(PI Target, 1)
 else:
     Effective Speed = PI Target
 ```
 
-This minimum rule applies only while the central HVAC is actively producing conditioned air.
-
-The PI balancing target itself may remain active while `hvac_action` is idle.
+The PI balancing target may therefore remain active while `hvac_action` is `idle`, but it cannot command bedroom airflow outside `COOL`.
 
 ---
-
 # Central Nest Blower — Second-Stage Assist
 
 v0.1.2 changes the central blower strategy significantly.
@@ -712,7 +735,7 @@ This helps recover from:
 
 ---
 
-# v0.1.2 Control Flow
+# v0.1.3 Control Flow
 
 Each bedroom follows the same control pipeline:
 
@@ -887,7 +910,7 @@ The project configuration is stored in the `HomeAssistant/` directory.
 
 ---
 
-# Core v0.1.2 Entities
+# Core v0.1.3 Entities
 
 ## Temperature
 
@@ -1004,7 +1027,7 @@ home-assistant-hvac-balancing/
 
 # Current Status
 
-The v0.1.2 controller is operational and currently being observed under real-world summer conditions.
+The v0.1.3 controller is operational and currently being observed under real-world summer conditions.
 
 The active system includes:
 
@@ -1033,7 +1056,7 @@ The Kitchen remains the main room-balancing temperature reference.
 - [x] Matching temperature sensors in Kitchen, Bed 1, Bed 2, and Bed 3
 - [x] Kitchen reference temperature
 - [x] Three bedroom temperature-delta sensors
-- [x] Directional cooling/heating control architecture
+- [x] Cooling-only bedroom control architecture
 - [x] Three independent Base P targets
 - [x] 0.2°F proportional hysteresis
 - [x] Three independent Adaptive I controllers
@@ -1042,8 +1065,8 @@ The Kitchen remains the main room-balancing temperature reference.
 - [x] Anti-windup at Speed 10
 - [x] Final PI target sensors
 - [x] Effective-percentage sensors
-- [x] Active balancing while COOL/HEAT mode remains selected even when HVAC is idle
-- [x] Minimum Speed 1 while HVAC is actively heating or cooling
+- [x] Active balancing while COOL remains selected even when HVAC is idle
+- [x] Minimum Speed 1 while COOL is actively cooling
 - [x] Nest second-stage assist at PI Target >= 8
 - [x] Five-minute Nest circulation release delay
 - [x] Home Assistant restart recovery
@@ -1056,21 +1079,27 @@ The Kitchen remains the main room-balancing temperature reference.
 - [x] Full-screen diagnostic dashboard
 - [x] Real-world summer operation in progress
 
-## Winter / Heating
+## Future Heating Readiness
 
-- [ ] Winter thermal behavior measured
-- [ ] Heating-specific adaptive behavior validated
-- [ ] Basement temperature monitoring re-established for winter testing
-- [ ] Basement imbalance characterized
-- [ ] Basement booster evaluated
-- [ ] Heating-specific thresholds tuned if required
-- [ ] Central circulation strategy validated for heating
-- [ ] Interaction between upstairs and basement balancing tested
-- [ ] Winter energy impact measured
-- [ ] Heating configuration field-tested
+Heating balancing is not implemented by the current bedroom controller.
+
+Before winter control is added, the project needs a new actuator topology and winter-specific field data.
+
+Planned work includes:
+
+- [ ] Re-establish dedicated Basement temperature monitoring
+- [ ] Characterize winter temperature imbalance between Basement, Kitchen, and bedrooms
+- [ ] Evaluate a Basement booster
+- [ ] Evaluate a Kitchen / lower-floor booster if required
+- [ ] Define heating-specific zone priorities
+- [ ] Define heating-specific Base P behavior
+- [ ] Define heating-specific Adaptive I behavior
+- [ ] Validate Nest circulation strategy for heating
+- [ ] Test interaction between lower-floor and upstairs airflow
+- [ ] Measure winter energy impact
+- [ ] Field-test the future heating controller
 
 ---
-
 # Future Development
 
 ## Longer-Term PI Performance Validation
@@ -1109,25 +1138,26 @@ Future versions may tune rooms independently because they differ in:
 
 ---
 
-## Winter / Heating Balancing
+## Future Heating Balancing
 
-The next seasonal phase is to validate the architecture under winter heating conditions.
+Version v0.1.3 deliberately does **not** perform bedroom balancing during heating.
 
-The expected house behavior may be approximately the opposite of summer:
+The summer problem and winter problem are physically different.
+
+During cooling, the upstairs bedrooms tend to become warmer than the Kitchen and lower floors. The existing bedroom boosters are therefore useful actuators because they can move additional conditioned air toward the rooms that need it.
+
+During heating, the colder areas are expected to be lower in the house. Simply reversing the sign of the current bedroom controller could send even more warm air toward bedrooms that are already warm enough.
+
+A future heating architecture should therefore be designed around lower-floor actuators, potentially including:
 
 ```text
-SUMMER
-Upstairs bedrooms too warm
-        ↓
-Increase airflow upstairs
-
-WINTER
-Basement too cold
-        ↓
-Potentially increase airflow downstairs
+fan.basement_booster
+fan.kitchen_booster
 ```
 
-A future whole-house version may include dedicated basement sensing and booster control.
+The exact entities and control strategy will be defined only after the required hardware is installed and winter temperature behavior has been measured.
+
+The future heating controller should be treated as a **multi-zone distribution problem**, not as a reversed version of the current cooling controller.
 
 ---
 

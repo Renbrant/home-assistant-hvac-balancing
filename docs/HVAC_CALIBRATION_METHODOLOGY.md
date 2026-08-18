@@ -1,4 +1,4 @@
-﻿# HVAC Balancing Calibration Methodology
+# HVAC Balancing Calibration Methodology
 
 ## Purpose
 

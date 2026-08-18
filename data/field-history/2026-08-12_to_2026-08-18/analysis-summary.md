@@ -1,4 +1,4 @@
-﻿# August 12-18, 2026 HVAC Baseline Analysis
+# August 12-18, 2026 HVAC Baseline Analysis
 
 ## Overview
 

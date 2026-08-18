@@ -1,4 +1,4 @@
-﻿# Home Assistant HVAC Balancing
+# Home Assistant HVAC Balancing
 
 ![Home Assistant HVAC Balancing](Photos/home-assistant-hvac-balancing2.png)
 

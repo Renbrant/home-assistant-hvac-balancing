@@ -1184,6 +1184,296 @@ The controller should be able to recover from stale Tuya feedback without requir
 
 ---
 
+# Post-Installation Verification — v0.1.3
+
+After installing or upgrading `templates.yaml` and `automation.yaml`, verify the complete control chain before relying on the controller for normal operation.
+
+The recommended verification has two stages:
+
+1. Immediate entity and calculation check
+2. Real-time Adaptive I observation
+
+---
+
+## Stage 1 — Immediate Entity Check
+
+Open:
+
+```text
+Developer Tools → Template
+```
+
+and paste:
+
+```jinja
+=== HVAC v0.1.3 CHECK ===
+
+CLIMATE
+mode: {{ states('climate.kitchen') }}
+hvac_action: {{ state_attr('climate.kitchen', 'hvac_action') }}
+current_temperature: {{ state_attr('climate.kitchen', 'current_temperature') }}
+target_temperature: {{ state_attr('climate.kitchen', 'temperature') }}
+
+BED 1
+temp: {{ states('sensor.bed_1_temp_temperature') }}
+delta: {{ states('sensor.bed_1_temperature_delta') }}
+base_p: {{ states('sensor.bed_1_booster_target_speed') }}
+adaptive_i: {{ states('sensor.bed_1_booster_adaptive_boost') }}
+reference_error: {{ state_attr('sensor.bed_1_booster_adaptive_boost', 'reference_error') }}
+last_evaluation: {{ state_attr('sensor.bed_1_booster_adaptive_boost', 'last_evaluation') }}
+pi_target: {{ states('sensor.bed_1_booster_pi_target_speed') }}
+effective_percentage: {{ states('sensor.bed_1_booster_effective_percentage') }}
+
+BED 2
+temp: {{ states('sensor.bed_2_temp_temperature') }}
+delta: {{ states('sensor.bed_2_temperature_delta') }}
+base_p: {{ states('sensor.bed_2_booster_target_speed') }}
+adaptive_i: {{ states('sensor.bed_2_booster_adaptive_boost') }}
+reference_error: {{ state_attr('sensor.bed_2_booster_adaptive_boost', 'reference_error') }}
+last_evaluation: {{ state_attr('sensor.bed_2_booster_adaptive_boost', 'last_evaluation') }}
+pi_target: {{ states('sensor.bed_2_booster_pi_target_speed') }}
+effective_percentage: {{ states('sensor.bed_2_booster_effective_percentage') }}
+
+BED 3
+temp: {{ states('sensor.bed_3_temp_temperature') }}
+delta: {{ states('sensor.bed_3_temperature_delta') }}
+base_p: {{ states('sensor.bed_3_booster_target_speed') }}
+adaptive_i: {{ states('sensor.bed_3_booster_adaptive_boost') }}
+reference_error: {{ state_attr('sensor.bed_3_booster_adaptive_boost', 'reference_error') }}
+last_evaluation: {{ state_attr('sensor.bed_3_booster_adaptive_boost', 'last_evaluation') }}
+pi_target: {{ states('sensor.bed_3_booster_pi_target_speed') }}
+effective_percentage: {{ states('sensor.bed_3_booster_effective_percentage') }}
+```
+
+All entities should return valid values.
+
+Unexpected results include:
+
+```text
+unknown
+unavailable
+None
+```
+
+where a calculated value is expected.
+
+---
+
+## Interpreting the Control Chain
+
+The expected relationship is:
+
+```text
+Temperature Delta
+       │
+       ▼
+     Base P
+       +
+   Adaptive I
+       │
+       ▼
+   PI Target
+       │
+       ▼
+Effective Percentage
+       │
+       ▼
+Physical Booster
+```
+
+For example:
+
+```text
+Base P      = 6
+Adaptive I  = 0
+PI Target   = 6
+Effective   = 60%
+```
+
+During:
+
+```text
+climate.kitchen = cool
+hvac_action = cooling
+```
+
+a PI Target greater than zero should normally map directly to:
+
+```text
+Speed 1  → 10%
+Speed 2  → 20%
+Speed 4  → 40%
+Speed 6  → 60%
+Speed 8  → 80%
+Speed 10 → 100%
+```
+
+If PI Target is zero while active cooling is occurring, the v0.1.3 minimum-airflow rule produces:
+
+```text
+10%
+```
+
+---
+
+## Adaptive I Immediately After Reload / Restart
+
+Seeing:
+
+```text
+Adaptive I = 0
+```
+
+immediately after installing, reloading templates, or restarting Home Assistant is normal.
+
+The adaptive controller needs an observation window of approximately:
+
+```text
+20 minutes
+```
+
+before deciding whether the current airflow is correcting the room imbalance quickly enough.
+
+Each bedroom maintains its own:
+
+```text
+reference_error
+last_evaluation
+```
+
+and therefore each bedroom may evaluate at a slightly different time.
+
+---
+
+## Stage 2 — Verify the Issue #3 Fix
+
+The key v0.1.3 correction is that normal climate attribute changes must not restart the Adaptive I observation window.
+
+Leave the Nest thermostat in:
+
+```text
+climate.kitchen = cool
+```
+
+and allow normal compressor cycling to occur:
+
+```text
+cooling
+   ↓
+idle
+   ↓
+cooling
+```
+
+Record:
+
+```text
+reference_error
+last_evaluation
+```
+
+for all three bedrooms.
+
+A normal `hvac_action` transition must **not immediately reset** those values.
+
+For example:
+
+```text
+15:50  reference_error = 2.4
+       last_evaluation = 15:50
+
+15:56  hvac_action changes cooling → idle
+
+Expected:
+       reference_error remains valid
+       last_evaluation does not jump to 15:56
+```
+
+The same applies when:
+
+```text
+idle → cooling
+```
+
+Normal Nest attribute updates such as current-temperature or target-temperature changes must also not restart the approximately 20-minute Adaptive I window.
+
+---
+
+## Expected Adaptive Evaluation
+
+After approximately 20 minutes:
+
+```text
+Improvement = Reference Error - Current Error
+```
+
+The controller evaluates the room response.
+
+Current v0.1.3 behavior:
+
+| Improvement | Adaptive I response |
+|---:|---|
+| `< 0.2°F` | Increase Adaptive I by 1 if headroom exists |
+| `0.2 – <0.5°F` | Hold |
+| `≥ 0.5°F` | Reduce Adaptive I by 1 |
+
+If Base P already equals:
+
+```text
+10
+```
+
+Adaptive I cannot increase because no additional speed headroom exists.
+
+---
+
+## Verify COOL-Only Safety
+
+The current bedroom controller must produce no booster demand outside `COOL`.
+
+Verify at a convenient time that changing the thermostat away from COOL results in:
+
+```text
+Base P              = 0
+Adaptive I           = 0
+PI Target            = 0
+Effective Percentage = 0
+Bedroom Boosters      = OFF
+```
+
+This applies to:
+
+```text
+heat
+heat_cool
+off
+```
+
+and unsupported / unavailable thermostat modes.
+
+When COOL is selected again, Adaptive I begins a fresh observation cycle.
+
+---
+
+## Verification Checklist
+
+A v0.1.3 installation can be considered healthy when:
+
+- [ ] All three bedroom temperature entities are available
+- [ ] All three delta entities are available
+- [ ] All three Base P entities return plausible values
+- [ ] Adaptive I entities and their diagnostic attributes are available
+- [ ] PI Target equals Base P + Adaptive I, capped at Speed 10
+- [ ] Effective Percentage matches the intended physical fan command
+- [ ] COOL + active cooling enforces the minimum Speed 1 rule
+- [ ] COOL + idle preserves PI balancing
+- [ ] `cooling → idle → cooling` does not restart Adaptive I
+- [ ] Nest attribute-only changes do not reset `reference_error`
+- [ ] Nest attribute-only changes do not reset `last_evaluation`
+- [ ] Leaving COOL commands all bedroom boosters OFF
+- [ ] Returning to COOL starts a fresh adaptive observation cycle
+
+---
 # Useful Test Scenarios
 
 | Scenario | Expected Result |
@@ -1196,7 +1486,7 @@ The controller should be able to recover from stale Tuya feedback without requir
 | Base P 6 + Adaptive I 2 | PI 8, approximately 80%, Nest assist requested |
 | Base P 10 | PI capped at 10; no adaptive headroom |
 | Error ≤ about 1.3°F | Adaptive correction resets / unwinds according to template logic |
-| Thermostat direction changes | Adaptive state is reset for the new direction |
+| Thermostat enters or leaves COOL | Adaptive state resets and a fresh COOL observation cycle begins when applicable |
 | All PI targets <8 for 5 minutes | Independent Nest circulation released after live re-check |
 
 ---

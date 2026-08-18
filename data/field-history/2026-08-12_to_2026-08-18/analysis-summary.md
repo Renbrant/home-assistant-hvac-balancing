@@ -405,3 +405,21 @@ focus.
 
 The next phase should remove known control-logic uncertainty before controller
 gains are changed.
+
+---
+
+## Reproducible analysis engine
+
+This baseline is reproducible using the versioned analyzer:
+
+`analysis/analyze_hvac_baseline.py`
+
+Analysis methodology version: `1.0.0`.
+
+The analyzer was executed against this August 12-18 dataset and passed
+regression checks against the key reference metrics documented in this report,
+including bedroom error statistics, Adaptive I reset correlation, Bed 3
+high-speed response-window counts, and Nest fan diagnostics.
+
+Future field-history datasets should be analyzed with this same implementation
+for before/after comparisons.

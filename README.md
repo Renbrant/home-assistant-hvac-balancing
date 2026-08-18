@@ -1,4 +1,4 @@
-# Home Assistant HVAC Balancing
+﻿# Home Assistant HVAC Balancing
 
 ![Home Assistant HVAC Balancing](Photos/home-assistant-hvac-balancing2.png)
 
@@ -1265,3 +1265,16 @@ central blower analysis, and before/after validation.
 
 No production tuning change should be made without a documented baseline and a
 post-change comparison.
+
+### Reproducible analysis tool
+
+The quantitative calibration methodology has a versioned reference
+implementation:
+
+- [HVAC baseline analyzer](analysis/analyze_hvac_baseline.py)
+
+Example:
+
+    py -3 analysis\analyze_hvac_baseline.py data\field-history\2026-08-12_to_2026-08-18
+
+Use `--format json` for machine-readable results.

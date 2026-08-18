@@ -318,7 +318,7 @@ Candidate windows begin every five minutes.
 A window is accepted only when:
 
 1. HVAC remains actively heating or cooling;
-2. Base P remains unchanged through the observation window.
+2. Base P has the same value at minutes 0, 5, 10, 15 and 20 of the observation window.
 
 The response metric is:
 
@@ -352,7 +352,7 @@ The same process is applied to final PI Target.
 A window is accepted only when:
 
 - HVAC remains continuously active;
-- PI Target remains unchanged.
+- PI Target has the same value at minutes 0, 5, 10, 15 and 20.
 
 This prevents improvement from being incorrectly attributed to one level when
 the controller changed levels during the observation window.
@@ -618,3 +618,33 @@ No production tuning change is recommended from the first pass alone.
 - #4 - HEAT_COOL idle / Base P behavior
 - #5 - climate trigger / Nest-release behavior
 - #6 - Base P and Adaptive I field-data calibration
+
+---
+
+## 24. Reference analysis implementation
+
+The quantitative methodology has an official versioned implementation:
+
+`analysis/analyze_hvac_baseline.py`
+
+Current analysis methodology version: `1.0.0`.
+
+The analyzer uses only Python standard-library modules and operates on the
+normalized field-history datasets stored under `data/field-history`.
+
+Example execution:
+
+    py -3 analysis\analyze_hvac_baseline.py data\field-history\2026-08-12_to_2026-08-18
+
+Machine-readable results are available with:
+
+    --format json
+
+The August 12-18, 2026 baseline acts as the regression reference for version
+1.0.0. Changes to the analyzer must continue reproducing the reference metrics
+unless the methodology version is intentionally changed and the historical
+baseline is explicitly recalculated.
+
+For the 20-minute Base P and PI Target response analysis, version 1.0.0 checks
+controller level at minutes 0, 5, 10, 15 and 20. This preserves the original
+baseline selection rule and makes future before/after datasets comparable.

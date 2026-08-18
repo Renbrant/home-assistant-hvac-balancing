@@ -27,6 +27,9 @@ def test_required_integration_files_exist() -> None:
         "const.py",
         "manifest.json",
         "runtime.py",
+        "observation.py",
+        "sensor.py",
+        "binary_sensor.py",
         "strings.json",
         "translations/en.json",
     )
@@ -42,7 +45,7 @@ def test_manifest_identity() -> None:
 
     assert manifest["domain"] == "hvac_balancing"
     assert manifest["name"] == "HVAC Balancing"
-    assert manifest["version"] == "0.2.0-beta.1"
+    assert manifest["version"] == "0.2.0-beta.2"
 
 
 def test_manifest_architecture() -> None:

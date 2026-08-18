@@ -142,21 +142,79 @@ views:
           - script.hvac_test_reset_virtual_boosters
 
       - type: markdown
-        title: Controller Diagnostics
+        title: Python Controller - Observation Only
         content: |
-          **Phase 1.5:** Virtual environment only.
+          **Phase 2:** The Python controller is connected to the virtual
+          Test Bench in observation-only mode.
 
-          The v0.2 Python controller is not connected yet.
+          It calculates controller demand but sends **no actuator commands**.
 
-          During Phase 2 this section will receive:
+          Change the virtual temperatures and compare the calculated outputs
+          below.
 
-          - Temperature Delta
-          - Base P
-          - Adaptive I
-          - PI Target
-          - Effective Percentage
-          - Controller Status
-          - Central Blower Assist Decision
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+
+          - type: entities
+            title: Python - Bed 1
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_1_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_1_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_1_effective_percentage
+                name: Effective Percentage
+
+          - type: entities
+            title: Python - Bed 2
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_2_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_2_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_2_effective_percentage
+                name: Effective Percentage
+
+          - type: entities
+            title: Python - Bed 3
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_3_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_3_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_3_effective_percentage
+                name: Effective Percentage
+
+      - type: entities
+        title: Python Controller - Global Decision
+        show_header_toggle: false
+        entities:
+
+          - entity: binary_sensor.hvac_balancing_test_central_assist
+            name: Central Blower Assist Requested
 
       - type: markdown
         title: Manual Validation Ideas

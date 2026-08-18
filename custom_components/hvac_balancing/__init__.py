@@ -6,43 +6,58 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import NAME, VERSION
+from .observation import HVACBalancingObservationRuntime
 from .runtime import HVACBalancingRuntimeData
 
+
 _LOGGER = logging.getLogger(__name__)
+
+PLATFORMS = (
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+)
+
+type HVACBalancingConfigEntry = ConfigEntry[HVACBalancingRuntimeData]
 
 
 async def async_setup(
     hass: HomeAssistant,
     config: dict[str, Any],
 ) -> bool:
-    """Set up the HVAC Balancing integration package.
-
-    The v0.2.0 Phase 1 skeleton intentionally performs no HVAC
-    calculations and sends no actuator commands.
-    """
+    """Set up the HVAC Balancing integration package."""
 
     return True
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: HVACBalancingConfigEntry,
 ) -> bool:
-    """Set up HVAC Balancing from a config entry.
+    """Set up HVAC Balancing in observation-only mode."""
 
-    Runtime state is stored on ConfigEntry.runtime_data instead of in
-    a global hass.data structure.
+    observer = HVACBalancingObservationRuntime(hass)
 
-    Phase 1 operates only as an integration lifecycle skeleton.
-    """
+    entry.runtime_data = HVACBalancingRuntimeData(
+        observer=observer,
+    )
 
-    entry.runtime_data = HVACBalancingRuntimeData()
+    # Home Assistant will invoke this callback if setup fails after this
+    # point or after a successful config-entry unload.
+    entry.async_on_unload(observer.async_stop)
+
+    observer.async_start()
+
+    await hass.config_entries.async_forward_entry_setups(
+        entry,
+        PLATFORMS,
+    )
 
     _LOGGER.info(
-        "%s %s loaded in safe Phase 1 observation-only mode",
+        "%s %s loaded in observation-only Test Bench mode",
         NAME,
         VERSION,
     )
@@ -52,18 +67,20 @@ async def async_setup_entry(
 
 async def async_unload_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: HVACBalancingConfigEntry,
 ) -> bool:
-    """Unload an HVAC Balancing config entry.
+    """Unload HVAC Balancing and its diagnostic entities."""
 
-    No listeners, timers, platforms, or physical actuators exist in
-    Phase 1, so there are currently no runtime resources to release.
-    """
-
-    _LOGGER.info(
-        "%s %s unloaded",
-        NAME,
-        VERSION,
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry,
+        PLATFORMS,
     )
 
-    return True
+    if unload_ok:
+        _LOGGER.info(
+            "%s %s unloaded",
+            NAME,
+            VERSION,
+        )
+
+    return unload_ok

@@ -5,15 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .const import DEFAULT_OBSERVATION_ONLY
+from .observation import HVACBalancingObservationRuntime
 
 
 @dataclass(slots=True)
 class HVACBalancingRuntimeData:
-    """Runtime state owned by one HVAC Balancing config entry.
+    """Runtime state owned by one HVAC Balancing config entry."""
 
-    Phase 1 deliberately contains no actuator/controller objects.
-    The integration therefore cannot command boosters or the central
-    HVAC blower at this stage.
-    """
-
+    observer: HVACBalancingObservationRuntime
     observation_only: bool = DEFAULT_OBSERVATION_ONLY

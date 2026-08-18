@@ -6,14 +6,16 @@ A smart HVAC room-balancing system built with **Home Assistant**, independent Zi
 
 The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current version: v1.2.0 — Active PI-Lite Thermal Balancing**
+> **Current development version: v0.1.2 — Active PI-Lite Thermal Balancing**
+> **Development status: Beta**
+> **Next planned maintenance version: v0.1.3**
 > The system is operational and field-tested primarily during summer / cooling conditions.
 
 ---
 
-# Version 1.2.0
+# Version 0.1.2
 
-Version **v1.2.0** upgrades the three-bedroom controller from a fixed proportional airflow strategy to an **active PI-lite balancing controller**.
+Version **v0.1.2** upgrades the three-bedroom controller from a fixed proportional airflow strategy to an **active PI-lite balancing controller**.
 
 The original temperature-delta curve remains the proportional component (**Base P**), while a new adaptive component (**Adaptive I**) observes whether each bedroom imbalance is actually improving over time.
 
@@ -25,7 +27,7 @@ PI Target = Base P + Adaptive I
 
 with anti-windup limiting the final target to Speed 10.
 
-## What's New in v1.2.0
+## What's New in v0.1.2
 
 - Added active PI-lite adaptive balancing for Bed 1, Bed 2, and Bed 3
 - Added independent adaptive correction for each bedroom
@@ -49,9 +51,9 @@ with anti-windup limiting the final target to Speed 10.
 
 | Version | Description |
 |---|---|
-| **v1.0.0** | Initial production controller with Bed 1 and Bed 2 balancing |
-| **v1.1.0** | Added Bed 3 and expanded the controller to three independently controlled bedrooms |
-| **v1.2.0** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
+| **v0.1.0** | Initial production controller with Bed 1 and Bed 2 balancing |
+| **v0.1.1** | Added Bed 3 and expanded the controller to three independently controlled bedrooms |
+| **v0.1.2** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
 
 ---
 
@@ -372,13 +374,13 @@ A colder bedroom creates positive airflow demand.
 
 When `hvac_action` is actively `cooling` or `heating`, that action establishes the current direction.
 
-When the thermostat remains in `heat_cool` but becomes idle, v1.2 retains the most recently known heating/cooling direction so active thermal balancing can continue between compressor/furnace cycles.
+When the thermostat remains in `heat_cool` but becomes idle, v0.1.2 retains the most recently known heating/cooling direction so active thermal balancing can continue between compressor/furnace cycles.
 
 ---
 
 # Active Thermal Balancing
 
-A major v1.2 change is that balancing is based primarily on **thermostat operating mode**, not only on active compressor/furnace runtime.
+A major v0.1.2 change is that balancing is based primarily on **thermostat operating mode**, not only on active compressor/furnace runtime.
 
 For example, while the Nest remains in `COOL` mode:
 
@@ -455,7 +457,7 @@ The proportional controller keeps approximately **0.2°F hysteresis** when reduc
 
 The proportional controller can determine how serious the current imbalance is, but it cannot determine whether the selected airflow is actually solving the problem fast enough.
 
-v1.2 adds an adaptive correction for each bedroom:
+v0.1.2 adds an adaptive correction for each bedroom:
 
 ```text
 sensor.bed_1_booster_adaptive_boost
@@ -612,11 +614,11 @@ The PI balancing target itself may remain active while `hvac_action` is idle.
 
 # Central Nest Blower — Second-Stage Assist
 
-v1.2 changes the central blower strategy significantly.
+v0.1.2 changes the central blower strategy significantly.
 
-In v1.1, the Nest blower joined relatively early in the balancing process.
+In v0.1.1, the Nest blower joined relatively early in the balancing process.
 
-In v1.2, the local booster gets the first opportunity to correct the imbalance.
+In v0.1.2, the local booster gets the first opportunity to correct the imbalance.
 
 The Nest blower is requested only when **any final PI target reaches Speed 8 or higher**.
 
@@ -710,7 +712,7 @@ This helps recover from:
 
 ---
 
-# v1.2 Control Flow
+# v0.1.2 Control Flow
 
 Each bedroom follows the same control pipeline:
 
@@ -777,7 +779,7 @@ This supports the core optimization idea:
 
 # Monitoring and Diagnostics
 
-v1.2 introduces a significantly expanded monitoring interface.
+v0.1.2 introduces a significantly expanded monitoring interface.
 
 The current live dashboard exposes:
 
@@ -802,7 +804,7 @@ The current live dashboard exposes:
 
 ## Plotly Multi-Panel Dashboard
 
-The primary v1.2 visualization uses **Plotly Graph Card** with multiple vertically stacked plots sharing the same time axis.
+The primary v0.1.2 visualization uses **Plotly Graph Card** with multiple vertically stacked plots sharing the same time axis.
 
 The dashboard is organized as:
 
@@ -885,7 +887,7 @@ The project configuration is stored in the `HomeAssistant/` directory.
 
 ---
 
-# Core v1.2 Entities
+# Core v0.1.2 Entities
 
 ## Temperature
 
@@ -1002,7 +1004,7 @@ home-assistant-hvac-balancing/
 
 # Current Status
 
-The v1.2 controller is operational and currently being observed under real-world summer conditions.
+The v0.1.2 controller is operational and currently being observed under real-world summer conditions.
 
 The active system includes:
 
@@ -1226,7 +1228,7 @@ Measure Result
 Optimize Next Decision
 ```
 
-v1.2 is the first production step in which the controller evaluates not only **how large the imbalance is**, but also **whether the selected airflow is actually fixing it**.
+v0.1.2 is the first production step in which the controller evaluates not only **how large the imbalance is**, but also **whether the selected airflow is actually fixing it**.
 
 ---
 

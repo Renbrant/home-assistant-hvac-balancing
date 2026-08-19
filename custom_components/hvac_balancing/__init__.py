@@ -222,11 +222,15 @@ async def async_setup_entry(
 
         actuator = HVACBalancingActuator(
             hass,
+            entry_id=entry.entry_id,
             observer=observer,
             thermostat_entity_id=thermostat_entity_id,
             central_assist=assist_config,
             zones=zones,
         )
+
+        # Restore persisted ownership before the STARTUP controller snapshot.
+        await actuator.async_prepare()
 
         observation_only = False
 

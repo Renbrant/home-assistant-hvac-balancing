@@ -30,6 +30,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.storage import Store
 
 from .configuration import CentralAssistConfig
 from .const import (
@@ -37,6 +38,7 @@ from .const import (
     CENTRAL_ASSIST_MODE_DISABLED,
     CENTRAL_ASSIST_MODE_FAN,
     CENTRAL_ASSIST_MODE_NEST,
+    DOMAIN,
 )
 from .observation import (
     HVACBalancingObservationRuntime,
@@ -54,6 +56,7 @@ NEST_SERVICE_SET_FAN_TIMER = "set_fan_timer"
 CENTRAL_ASSIST_TIMER_HOURS = 12
 CENTRAL_ASSIST_OFF_DELAY_SECONDS = 5 * 60
 CENTRAL_ASSIST_REFRESH_SECONDS = 60 * 60
+CENTRAL_ASSIST_OWNERSHIP_STORE_VERSION = 1
 
 
 class HVACBalancingActuator:
@@ -63,6 +66,7 @@ class HVACBalancingActuator:
         self,
         hass: HomeAssistant,
         *,
+        entry_id: str,
         observer: HVACBalancingObservationRuntime,
         thermostat_entity_id: str,
         central_assist: CentralAssistConfig,
@@ -75,6 +79,15 @@ class HVACBalancingActuator:
         self._thermostat_entity_id = thermostat_entity_id
         self._central_assist = central_assist
         self._zones = tuple(zones)
+
+        self._ownership_store = Store[dict[str, object]](
+            hass,
+            CENTRAL_ASSIST_OWNERSHIP_STORE_VERSION,
+            f"{DOMAIN}.central_assist_ownership.{entry_id}",
+        )
+
+        self._persisted_assist_requested: bool | None = None
+        self._persisted_assist_adapter: str | None = None
 
         if any(
             zone.fan_entity_id is None
@@ -98,6 +111,121 @@ class HVACBalancingActuator:
             zone.key: None
             for zone in self._zones
         }
+
+    async def async_prepare(self) -> None:
+        """Restore Central Assist ownership before controller startup."""
+
+        adapter = self._assist_ownership_fingerprint()
+
+        try:
+            stored = await self._ownership_store.async_load()
+
+        except (HomeAssistantError, OSError) as err:
+            _LOGGER.error(
+                "Unable to load HVAC Balancing Central Assist ownership: %s",
+                err,
+            )
+
+            return
+
+        if not isinstance(stored, dict):
+            return
+
+        stored_owned = stored.get("owned") is True
+
+        stored_adapter_value = stored.get(
+            "adapter"
+        )
+
+        stored_adapter = (
+            stored_adapter_value
+            if isinstance(
+                stored_adapter_value,
+                str,
+            )
+            else None
+        )
+
+        self._persisted_assist_requested = stored_owned
+        self._persisted_assist_adapter = stored_adapter
+
+        if stored_adapter == adapter:
+            if stored_owned:
+                self._assist_requested = True
+
+                _LOGGER.info(
+                    "Restored HVAC Balancing Central Assist ownership for %s",
+                    adapter,
+                )
+
+            return
+
+        # Never transfer persisted ownership to a different adapter.
+        self._assist_requested = False
+
+        await self._async_persist_assist_ownership()
+
+    def _assist_ownership_fingerprint(self) -> str:
+        """Return a stable identity for the configured assist adapter."""
+
+        mode = self._central_assist.mode
+
+        if mode == CENTRAL_ASSIST_MODE_FAN:
+            return (
+                f"fan:{self._central_assist.fan_entity_id or ''}"
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_CLIMATE:
+            return (
+                "climate:"
+                f"{self._thermostat_entity_id}:"
+                f"{self._central_assist.fan_mode_on or ''}:"
+                f"{self._central_assist.fan_mode_off or ''}"
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_NEST:
+            return (
+                f"nest:{self._thermostat_entity_id}"
+            )
+
+        return f"{mode}:disabled"
+
+    async def _async_persist_assist_ownership(self) -> None:
+        """Persist ownership created by HVAC Balancing."""
+
+        adapter = self._assist_ownership_fingerprint()
+
+        if (
+            self._persisted_assist_requested
+            == self._assist_requested
+            and self._persisted_assist_adapter
+            == adapter
+        ):
+            return
+
+        data: dict[str, object] = {
+            "owned": self._assist_requested,
+            "adapter": adapter,
+        }
+
+        try:
+            await self._ownership_store.async_save(
+                data
+            )
+
+        except (HomeAssistantError, OSError) as err:
+            _LOGGER.error(
+                "Unable to save HVAC Balancing Central Assist ownership: %s",
+                err,
+            )
+
+            return
+
+        self._persisted_assist_requested = (
+            self._assist_requested
+        )
+
+        self._persisted_assist_adapter = adapter
 
     @callback
     def async_start(self) -> None:
@@ -355,6 +483,7 @@ class HVACBalancingActuator:
                 )
 
                 if not refresh_due:
+                    await self._async_persist_assist_ownership()
                     return
 
                 success = await self._async_request_central_assist()
@@ -365,6 +494,8 @@ class HVACBalancingActuator:
                         now_monotonic
                     )
 
+                    await self._async_persist_assist_ownership()
+
                 return
 
             # Reconcile against the actual Home Assistant state rather than
@@ -373,6 +504,9 @@ class HVACBalancingActuator:
             # did not start it, leave it unowned so we never turn off another
             # automation's or a manual Central Assist request.
             if self._central_assist_state_matches():
+                if self._assist_requested:
+                    await self._async_persist_assist_ownership()
+
                 return
 
             success = await self._async_request_central_assist()
@@ -381,11 +515,29 @@ class HVACBalancingActuator:
                 self._assist_requested = True
                 self._assist_last_refresh_monotonic = None
 
+                await self._async_persist_assist_ownership()
+
             return
 
         # Never turn off Central Assist that HVAC Balancing did not start.
         if not self._assist_requested:
             self._cancel_assist_off()
+            return
+
+        if (
+            mode
+            in (
+                CENTRAL_ASSIST_MODE_FAN,
+                CENTRAL_ASSIST_MODE_CLIMATE,
+            )
+            and not self._central_assist_state_matches()
+        ):
+            self._cancel_assist_off()
+            self._assist_requested = False
+            self._assist_last_refresh_monotonic = None
+
+            await self._async_persist_assist_ownership()
+
             return
 
         if (
@@ -560,6 +712,8 @@ class HVACBalancingActuator:
                 self._assist_requested = False
                 self._assist_last_refresh_monotonic = None
 
+                await self._async_persist_assist_ownership()
+
         except asyncio.CancelledError:
             raise
 
@@ -632,3 +786,5 @@ class HVACBalancingActuator:
             if success:
                 self._assist_requested = False
                 self._assist_last_refresh_monotonic = None
+
+                await self._async_persist_assist_ownership()

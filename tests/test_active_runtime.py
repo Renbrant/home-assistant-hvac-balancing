@@ -550,3 +550,100 @@ def test_central_assist_reconciles_real_state_drift() -> None:
     )
 
     assert state_check < request_call < ownership_claim
+
+def test_central_assist_ownership_persists_across_restart() -> None:
+    """Restore only ownership previously created by the same adapter."""
+
+    actuator = read("actuator.py")
+    init = read("__init__.py")
+
+    assert (
+        "from homeassistant.helpers.storage import Store"
+        in actuator
+    )
+
+    assert (
+        "CENTRAL_ASSIST_OWNERSHIP_STORE_VERSION = 1"
+        in actuator
+    )
+
+    assert "async def async_prepare" in actuator
+
+    assert (
+        "async def _async_persist_assist_ownership"
+        in actuator
+    )
+
+    assert (
+        "def _assist_ownership_fingerprint"
+        in actuator
+    )
+
+    assert (
+        '"owned": self._assist_requested'
+        in actuator
+    )
+
+    assert '"adapter": adapter' in actuator
+
+    assert "if stored_adapter == adapter:" in actuator
+
+    assert "entry_id=entry.entry_id" in init
+    assert "await actuator.async_prepare()" in init
+
+    prepare = init.index(
+        "await actuator.async_prepare()"
+    )
+
+    actuator_start = init.index(
+        "actuator.async_start()"
+    )
+
+    observer_start = init.index(
+        "observer.async_start()"
+    )
+
+    assert prepare < actuator_start < observer_start
+
+    apply_start = actuator.index(
+        "async def _async_apply_central_assist"
+    )
+
+    request_start = actuator.index(
+        "async def _async_request_central_assist",
+        apply_start,
+    )
+
+    apply_section = actuator[
+        apply_start:request_start
+    ]
+
+    state_match = apply_section.index(
+        "if self._central_assist_state_matches():"
+    )
+
+    request = apply_section.index(
+        "success = await self._async_request_central_assist()",
+        state_match,
+    )
+
+    matching_state_block = apply_section[
+        state_match:request
+    ]
+
+    # Matching physical state alone may not claim ownership.
+    assert (
+        "self._assist_requested = True"
+        not in matching_state_block
+    )
+
+    # Previously restored ownership is allowed to remain persisted.
+    assert (
+        "if self._assist_requested:"
+        in matching_state_block
+    )
+
+    assert (
+        "await self._async_persist_assist_ownership()"
+        in matching_state_block
+    )

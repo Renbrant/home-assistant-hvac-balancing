@@ -56,7 +56,7 @@ def test_manifest_architecture() -> None:
 
     assert manifest["config_flow"] is True
     assert manifest["single_config_entry"] is True
-    assert manifest["integration_type"] == "helper"
+    assert manifest["integration_type"] == "service"
     assert manifest["iot_class"] == "calculated"
     assert manifest["requirements"] == []
 

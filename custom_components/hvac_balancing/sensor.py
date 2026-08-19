@@ -7,13 +7,18 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,
 )
 from homeassistant.util import dt as dt_util
 
+from .configuration import (
+    legacy_compatible_sensor_entity_id,
+    legacy_compatible_sensor_name,
+)
+from .const import RUNTIME_MODE_PRODUCTION
 from .controller import (
     COOLING_ACTION,
     COOL_MODE,
@@ -28,6 +33,7 @@ from .runtime import HVACBalancingRuntimeData
 
 
 METRICS = (
+    ("temperature_delta", "Temperature Delta"),
     ("base_p", "Base P"),
     ("adaptive_i", "Adaptive I"),
     ("pi_target", "PI Target"),
@@ -134,6 +140,34 @@ class HVACBalancingObservationSensor(SensorEntity):
             f"{self._observer.unique_id_prefix}_{zone.key}_{metric}"
         )
 
+        # Production v0.2 deliberately suggests the historical v0.1.3
+        # entity IDs for metrics that have direct legacy equivalents.
+        #
+        # Home Assistant still owns the Entity Registry. Once registered,
+        # the stable unique_id remains the integration identity and user
+        # entity-ID customizations remain registry-managed.
+        if self._observer.runtime_mode == RUNTIME_MODE_PRODUCTION:
+            legacy_entity_id = legacy_compatible_sensor_entity_id(
+                zone.name,
+                metric,
+            )
+
+            legacy_name = legacy_compatible_sensor_name(
+                zone.name,
+                metric,
+            )
+
+            if legacy_entity_id is not None:
+                self.entity_id = legacy_entity_id
+
+            if legacy_name is not None:
+                self._attr_name = legacy_name
+
+        if metric == "temperature_delta":
+            self._attr_native_unit_of_measurement = (
+                UnitOfTemperature.FAHRENHEIT
+            )
+
         if metric == "effective_percentage":
             self._attr_native_unit_of_measurement = PERCENTAGE
 
@@ -173,6 +207,9 @@ class HVACBalancingObservationSensor(SensorEntity):
 
         if decision is None:
             return None
+
+        if self._metric == "temperature_delta":
+            return decision.temperature_delta
 
         if self._metric == "base_p":
             return decision.base_target

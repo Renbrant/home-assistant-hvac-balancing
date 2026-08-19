@@ -98,6 +98,12 @@ validate_zone_records = configuration.validate_zone_records
 stale_production_zone_unique_ids = (
     configuration.stale_production_zone_unique_ids
 )
+legacy_compatible_sensor_entity_id = (
+    configuration.legacy_compatible_sensor_entity_id
+)
+legacy_compatible_sensor_name = (
+    configuration.legacy_compatible_sensor_name
+)
 
 CENTRAL_ASSIST_MODE_CLIMATE = const.CENTRAL_ASSIST_MODE_CLIMATE
 CENTRAL_ASSIST_MODE_DISABLED = const.CENTRAL_ASSIST_MODE_DISABLED
@@ -432,6 +438,118 @@ class CentralAssistConfigurationTests(unittest.TestCase):
         )
 
 
+class HistoricalEntityCompatibilityTests(unittest.TestCase):
+    """Verify the v0.2 production interface preserves v0.1.3 identities."""
+
+    def test_bed_1_legacy_entity_ids_and_names(self) -> None:
+        expected = {
+            "temperature_delta": (
+                "sensor.bed_1_temperature_delta",
+                "Bed 1 Temperature Delta",
+            ),
+            "base_p": (
+                "sensor.bed_1_booster_target_speed",
+                "Bed 1 Booster Target Speed",
+            ),
+            "adaptive_i": (
+                "sensor.bed_1_booster_adaptive_boost",
+                "Bed 1 Booster Adaptive Boost",
+            ),
+            "pi_target": (
+                "sensor.bed_1_booster_pi_target_speed",
+                "Bed 1 Booster PI Target Speed",
+            ),
+            "effective_percentage": (
+                "sensor.bed_1_booster_effective_percentage",
+                "Bed 1 Booster Effective Percentage",
+            ),
+        }
+
+        for metric, (
+            expected_entity_id,
+            expected_name,
+        ) in expected.items():
+            self.assertEqual(
+                legacy_compatible_sensor_entity_id(
+                    "Bed 1",
+                    metric,
+                ),
+                expected_entity_id,
+            )
+
+            self.assertEqual(
+                legacy_compatible_sensor_name(
+                    "Bed 1",
+                    metric,
+                ),
+                expected_name,
+            )
+
+    def test_legacy_mapping_is_dynamic_not_bedroom_specific(self) -> None:
+        self.assertEqual(
+            legacy_compatible_sensor_entity_id(
+                "Office West",
+                "pi_target",
+            ),
+            "sensor.office_west_booster_pi_target_speed",
+        )
+
+        self.assertEqual(
+            legacy_compatible_sensor_name(
+                "Office West",
+                "pi_target",
+            ),
+            "Office West Booster PI Target Speed",
+        )
+
+    def test_new_v02_diagnostic_does_not_claim_legacy_identity(self) -> None:
+        self.assertIsNone(
+            legacy_compatible_sensor_entity_id(
+                "Bed 1",
+                "improvement_rate",
+            )
+        )
+
+        self.assertIsNone(
+            legacy_compatible_sensor_name(
+                "Bed 1",
+                "improvement_rate",
+            )
+        )
+
+    def test_sensor_platform_exposes_temperature_delta_and_legacy_ids(self) -> None:
+        sensor_source = (
+            INTEGRATION / "sensor.py"
+        ).read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            '("temperature_delta", "Temperature Delta")',
+            sensor_source,
+        )
+
+        self.assertIn(
+            "return decision.temperature_delta",
+            sensor_source,
+        )
+
+        self.assertIn(
+            "legacy_compatible_sensor_entity_id(",
+            sensor_source,
+        )
+
+        self.assertIn(
+            "self.entity_id = legacy_entity_id",
+            sensor_source,
+        )
+
+        self.assertIn(
+            "UnitOfTemperature.FAHRENHEIT",
+            sensor_source,
+        )
+
+
 class ProductionEntityRegistryCleanupTests(unittest.TestCase):
     """Verify removed dynamic zones do not leave diagnostic entities behind."""
 
@@ -473,7 +591,7 @@ class ProductionEntityRegistryCleanupTests(unittest.TestCase):
 
         self.assertEqual(
             len(stale),
-            8,
+            9,
         )
 
     def test_global_and_active_entities_are_preserved(self) -> None:

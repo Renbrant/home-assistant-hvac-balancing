@@ -2,7 +2,7 @@
 
 DOMAIN = "hvac_balancing"
 NAME = "HVAC Balancing"
-VERSION = "0.2.0-beta.8"
+VERSION = "0.2.0-beta.9"
 
 RUNTIME_MODE_TEST_BENCH = "test_bench"
 RUNTIME_MODE_PRODUCTION = "production_active"

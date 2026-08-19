@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+import re
 from typing import Any
+import unicodedata
 
 from .const import (
     CENTRAL_ASSIST_MODE_CLIMATE,
@@ -35,6 +37,7 @@ REQUIRED_ZONE_KEYS = (
 
 
 PRODUCTION_ZONE_ENTITY_SUFFIXES = (
+    "temperature_delta",
     "base_p",
     "adaptive_i",
     "pi_target",
@@ -44,6 +47,110 @@ PRODUCTION_ZONE_ENTITY_SUFFIXES = (
     "next_adaptive_due",
     "adaptive_window",
 )
+
+
+# Historical Home Assistant entity compatibility.
+#
+# These five controller metrics existed as v0.1.3 YAML/Jinja template
+# sensors. Production v0.2 deliberately retains their public entity IDs
+# and friendly names so Recorder history, dashboards, and references can
+# continue across the implementation boundary.
+#
+# This mapping is generic by zone name; it does not hard-code Bed 1/2/3.
+LEGACY_COMPATIBLE_SENSOR_METADATA = {
+    "temperature_delta": (
+        "temperature_delta",
+        "Temperature Delta",
+    ),
+    "base_p": (
+        "booster_target_speed",
+        "Booster Target Speed",
+    ),
+    "adaptive_i": (
+        "booster_adaptive_boost",
+        "Booster Adaptive Boost",
+    ),
+    "pi_target": (
+        "booster_pi_target_speed",
+        "Booster PI Target Speed",
+    ),
+    "effective_percentage": (
+        "booster_effective_percentage",
+        "Booster Effective Percentage",
+    ),
+}
+
+
+def _legacy_zone_object_id(
+    zone_name: str,
+) -> str | None:
+    """Return a stable HA-compatible object-id prefix from a zone name."""
+
+    normalized = unicodedata.normalize(
+        "NFKD",
+        zone_name,
+    )
+
+    ascii_name = normalized.encode(
+        "ascii",
+        "ignore",
+    ).decode(
+        "ascii"
+    )
+
+    object_id = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        ascii_name.lower(),
+    ).strip("_")
+
+    if not object_id:
+        return None
+
+    return object_id
+
+
+def legacy_compatible_sensor_entity_id(
+    zone_name: str,
+    metric: str,
+) -> str | None:
+    """Return the legacy-compatible production sensor entity ID."""
+
+    metadata = LEGACY_COMPATIBLE_SENSOR_METADATA.get(
+        metric
+    )
+
+    if metadata is None:
+        return None
+
+    object_id = _legacy_zone_object_id(
+        zone_name
+    )
+
+    if object_id is None:
+        return None
+
+    suffix, _ = metadata
+
+    return f"sensor.{object_id}_{suffix}"
+
+
+def legacy_compatible_sensor_name(
+    zone_name: str,
+    metric: str,
+) -> str | None:
+    """Return the v0.1.3-compatible friendly name for one metric."""
+
+    metadata = LEGACY_COMPATIBLE_SENSOR_METADATA.get(
+        metric
+    )
+
+    if metadata is None:
+        return None
+
+    _, metric_name = metadata
+
+    return f"{zone_name} {metric_name}"
 
 
 def production_zone_id_from_unique_id(

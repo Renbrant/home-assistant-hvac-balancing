@@ -529,6 +529,54 @@ class ExposureAntiWindupTests(unittest.TestCase):
             "no_headroom",
         )
 
+    def test_adaptive_due_reports_saturated_when_pi_is_already_max(self) -> None:
+        """Report saturation without changing already-maxed Adaptive I."""
+
+        previous = ZoneState(
+            base_target=8,
+            adaptive_boost=2,
+            reference_error=3.00,
+            last_evaluation=T0,
+            cooling_exposure_seconds=300.0,
+            last_observed_at=T0 + timedelta(minutes=5),
+            observed_hvac_mode="cool",
+            observed_hvac_action="cooling",
+            observed_valid_temperatures=True,
+        )
+
+        decision = exposure_zone(
+            room=78.10,
+            previous=previous,
+            event=ControllerEvent.ADAPTIVE_DUE,
+            now=T0 + timedelta(minutes=10),
+        )
+
+        self.assertEqual(
+            decision.base_target,
+            8,
+        )
+
+        self.assertEqual(
+            decision.adaptive_boost,
+            2,
+        )
+
+        self.assertEqual(
+            decision.pi_target,
+            10,
+        )
+
+        self.assertEqual(
+            decision.adaptive_action,
+            "saturated",
+        )
+
+        self.assertEqual(
+            decision.cooling_exposure_seconds,
+            0.0,
+        )
+
+
 class ExposureResetTests(unittest.TestCase):
     """Verify true mode changes and invalid strategies fail safely."""
 

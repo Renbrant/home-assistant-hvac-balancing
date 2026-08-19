@@ -390,3 +390,31 @@ def test_global_adaptive_tick_is_absent_from_test_bench_adapter() -> None:
     assert "def _async_adaptive_tick" not in observation
     assert "minute=range(0, 60, 5)" not in observation
     assert "ControllerEvent.ADAPTIVE_TICK" not in observation
+
+def test_diagnostic_times_are_normalized_to_ha_local_timezone() -> None:
+    """Verify all displayed diagnostic clocks normalize through HA timezone."""
+
+    sensor = read("sensor.py")
+
+    assert "from homeassistant.util import dt as dt_util" in sensor
+    assert "def _as_local_datetime(" in sensor
+    assert "dt_util.as_local(value)" in sensor
+    assert "def _local_isoformat(" in sensor
+
+    start = sensor.index(
+        "def _format_time"
+    )
+
+    end = sensor.index(
+        "def _format_duration",
+        start,
+    )
+
+    formatter = sensor[start:end]
+
+    assert "_as_local_datetime(" in formatter
+    assert 'strftime(' in formatter
+
+    assert '"deadline": _local_isoformat(' in sensor
+    assert '"last_controller_update": _local_isoformat(' in sensor
+    assert '"next_watchdog": _local_isoformat(' in sensor

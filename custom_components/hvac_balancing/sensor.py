@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,
 )
+from homeassistant.util import dt as dt_util
 
 from .controller import (
     COOLING_ACTION,
@@ -263,13 +264,43 @@ class HVACBalancingObservationSensor(SensorEntity):
 
         self.async_write_ha_state()
 
+def _as_local_datetime(
+    value: object,
+) -> datetime | None:
+    """Normalize one diagnostic datetime to Home Assistant local time."""
+
+    if not isinstance(value, datetime):
+        return None
+
+    return dt_util.as_local(value)
+
+
 def _format_time(value: object) -> str:
-    """Format a datetime for Test Bench display."""
+    """Format a datetime in Home Assistant local time."""
 
-    if hasattr(value, "strftime"):
-        return value.strftime("%H:%M:%S")
+    local_value = _as_local_datetime(
+        value
+    )
 
-    return "Unknown"
+    if local_value is None:
+        return "Unknown"
+
+    return local_value.strftime(
+        "%H:%M:%S"
+    )
+
+
+def _local_isoformat(
+    value: datetime | None,
+) -> str | None:
+    """Return a local-time ISO timestamp for diagnostic attributes."""
+
+    if value is None:
+        return None
+
+    return dt_util.as_local(
+        value
+    ).isoformat()
 
 
 def _format_duration(total_seconds: int) -> str:
@@ -408,16 +439,20 @@ class HVACBalancingTimelineSensor(SensorEntity):
 
         return {
             "observation_only": True,
-            "current_time": now.isoformat(),
-            "last_controller_update": snapshot.updated_at.isoformat(),
+            "current_time": _local_isoformat(
+                now
+            ),
+            "last_controller_update": _local_isoformat(
+                snapshot.updated_at
+            ),
             "last_controller_event": snapshot.event.value,
             "adaptive_due_zone": snapshot.adaptive_due_zone,
-            "last_watchdog": (
-                self._observer.last_watchdog.isoformat()
-                if self._observer.last_watchdog is not None
-                else None
+            "last_watchdog": _local_isoformat(
+                self._observer.last_watchdog
             ),
-            "next_watchdog": next_watchdog.isoformat(),
+            "next_watchdog": _local_isoformat(
+                next_watchdog
+            ),
             "seconds_to_next_watchdog": max(
                 int(
                     (
@@ -570,10 +605,8 @@ class HVACBalancingZoneDeadlineSensor(SensorEntity):
         return {
             "observation_only": True,
             "zone": self._zone.key,
-            "deadline": (
-                deadline.isoformat()
-                if deadline is not None
-                else None
+            "deadline": _local_isoformat(
+                deadline
             ),
             "seconds_to_due": seconds_to_due,
             "hvac_mode": snapshot.hvac_mode,

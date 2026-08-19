@@ -562,6 +562,7 @@ def _cooling_exposure_adaptive(
     )
 
     updated = current
+    diagnostic_action = action.value
 
     if action == AdaptiveAction.RESET:
         updated = 0
@@ -571,6 +572,9 @@ def _cooling_exposure_adaptive(
             current + 1,
             headroom,
         )
+
+        if updated == current:
+            diagnostic_action = "saturated"
 
     if action == AdaptiveAction.DECREASE:
         updated = max(
@@ -587,7 +591,7 @@ def _cooling_exposure_adaptive(
         required_cooling_exposure_seconds=required,
         cooling_exposure_progress=0.0,
         improvement_rate_per_10m=rate,
-        adaptive_action=action.value,
+        adaptive_action=diagnostic_action,
     )
 
 def _legacy_adaptive_boost(

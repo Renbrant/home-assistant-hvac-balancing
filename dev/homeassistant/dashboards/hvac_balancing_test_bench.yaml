@@ -251,10 +251,11 @@ views:
 
           It calculates controller demand but sends **no actuator commands**.
 
-          **beta.5:** each zone now owns an independent Adaptive Episode
+          **beta.6:** each zone owns an independent Adaptive Episode
           and a relative deadline based on its remaining effective cooling time.
           Idle pauses that zone's deadline; Cooling resumes it from the saved
-          exposure. There is no global Adaptive decision tick.
+          exposure. Diagnostic times use Home Assistant local time, and a
+          blocked Adaptive increase at PI maximum is reported as `saturated`.
 
           Change the virtual temperatures and compare the calculated outputs
           below.

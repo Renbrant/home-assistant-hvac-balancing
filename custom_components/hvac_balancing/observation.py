@@ -48,11 +48,12 @@ TEST_BENCH_REFERENCE = "sensor.hvac_test_kitchen_temperature"
 
 @dataclass(frozen=True, slots=True)
 class ObservationZoneConfig:
-    """Development Test Bench zone mapping."""
+    """One runtime balancing-zone mapping."""
 
     key: str
     name: str
     temperature_entity_id: str
+    fan_entity_id: str | None = None
 
 
 TEST_BENCH_ZONES = (
@@ -91,10 +92,30 @@ class ObservationSnapshot:
 class HVACBalancingObservationRuntime:
     """Run the pure controller against Home Assistant virtual entities."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize observation runtime."""
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        *,
+        thermostat_entity_id: str = TEST_BENCH_THERMOSTAT,
+        reference_entity_id: str = TEST_BENCH_REFERENCE,
+        zones: tuple[ObservationZoneConfig, ...] = TEST_BENCH_ZONES,
+        entity_name_prefix: str = "HVAC Balancing Test",
+        unique_id_prefix: str = "test",
+        observation_only: bool = True,
+        runtime_mode: str = "test_bench",
+    ) -> None:
+        """Initialize one controller runtime."""
 
         self.hass = hass
+
+        self.thermostat_entity_id = thermostat_entity_id
+        self.reference_entity_id = reference_entity_id
+        self._zones = tuple(zones)
+
+        self.entity_name_prefix = entity_name_prefix
+        self.unique_id_prefix = unique_id_prefix
+        self.observation_only = observation_only
+        self.runtime_mode = runtime_mode
 
         self.snapshot: ObservationSnapshot | None = None
 
@@ -107,13 +128,13 @@ class HVACBalancingObservationRuntime:
 
         self._zone_states: dict[str, ZoneState] = {
             zone.key: ZoneState()
-            for zone in TEST_BENCH_ZONES
+            for zone in self._zones
         }
 
         # Independent relative deadline for each Adaptive episode.
         self.zone_deadlines: dict[str, datetime | None] = {
             zone.key: None
-            for zone in TEST_BENCH_ZONES
+            for zone in self._zones
         }
 
         self._zone_deadline_unsubscribers: dict[
@@ -129,18 +150,18 @@ class HVACBalancingObservationRuntime:
     def zones(self) -> tuple[ObservationZoneConfig, ...]:
         """Return Test Bench zone definitions."""
 
-        return TEST_BENCH_ZONES
+        return self._zones
 
     @property
     def observed_entity_ids(self) -> tuple[str, ...]:
         """Return every HA entity consumed by the observation runtime."""
 
         return (
-            TEST_BENCH_THERMOSTAT,
-            TEST_BENCH_REFERENCE,
+            self.thermostat_entity_id,
+            self.reference_entity_id,
             *(
                 zone.temperature_entity_id
-                for zone in TEST_BENCH_ZONES
+                for zone in self._zones
             ),
         )
 
@@ -238,7 +259,7 @@ class HVACBalancingObservationRuntime:
 
         controller_event = ControllerEvent.NORMAL_UPDATE
 
-        if event.data["entity_id"] == TEST_BENCH_THERMOSTAT:
+        if event.data["entity_id"] == self.thermostat_entity_id:
             old_state = event.data["old_state"]
             new_state = event.data["new_state"]
 
@@ -286,7 +307,7 @@ class HVACBalancingObservationRuntime:
     def _cancel_all_zone_deadlines(self) -> None:
         """Cancel every pending per-zone Adaptive deadline."""
 
-        for zone in TEST_BENCH_ZONES:
+        for zone in self._zones:
             self._cancel_zone_deadline(
                 zone.key
             )
@@ -338,7 +359,7 @@ class HVACBalancingObservationRuntime:
             self._cancel_all_zone_deadlines()
             return
 
-        for zone in TEST_BENCH_ZONES:
+        for zone in self._zones:
             self._cancel_zone_deadline(
                 zone.key
             )
@@ -478,7 +499,7 @@ class HVACBalancingObservationRuntime:
             and adaptive_due_zone
             not in {
                 zone.key
-                for zone in TEST_BENCH_ZONES
+                for zone in self._zones
             }
         ):
             raise ValueError(
@@ -486,11 +507,11 @@ class HVACBalancingObservationRuntime:
             )
 
         thermostat_state = self.hass.states.get(
-            TEST_BENCH_THERMOSTAT
+            self.thermostat_entity_id
         )
 
         reference_state = self.hass.states.get(
-            TEST_BENCH_REFERENCE
+            self.reference_entity_id
         )
 
         hvac_mode = (
@@ -515,7 +536,7 @@ class HVACBalancingObservationRuntime:
             zone.key: self.hass.states.get(
                 zone.temperature_entity_id
             )
-            for zone in TEST_BENCH_ZONES
+            for zone in self._zones
         }
 
         test_bench_ready = (
@@ -529,7 +550,7 @@ class HVACBalancingObservationRuntime:
 
         decisions: dict[str, ZoneDecision] = {}
 
-        for zone in TEST_BENCH_ZONES:
+        for zone in self._zones:
             room_state = room_states[zone.key]
 
             room_temperature = (

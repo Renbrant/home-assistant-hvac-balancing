@@ -4,8 +4,33 @@
     "step": {
       "user": {
         "title": "HVAC Balancing",
-        "description": "Create the v0.2.0 development integration entry. This Phase 1 skeleton does not control HVAC equipment."
+        "description": "Choose a safe Test Bench runtime or explicitly configure active production control."
+      },
+      "test_bench": {
+        "title": "Test Bench",
+        "description": "Create the observation-only virtual Test Bench runtime."
+      },
+      "production": {
+        "title": "Production Active Control",
+        "description": "Configure the real thermostat, reference sensor, three balancing zones, and explicitly enable physical actuation.",
+        "data": {
+          "thermostat": "Thermostat",
+          "reference_sensor": "Reference temperature sensor",
+          "zone_1_name": "Zone 1 name",
+          "zone_1_temperature": "Zone 1 temperature sensor",
+          "zone_1_fan": "Zone 1 booster fan",
+          "zone_2_name": "Zone 2 name",
+          "zone_2_temperature": "Zone 2 temperature sensor",
+          "zone_2_fan": "Zone 2 booster fan",
+          "zone_3_name": "Zone 3 name",
+          "zone_3_temperature": "Zone 3 temperature sensor",
+          "zone_3_fan": "Zone 3 booster fan",
+          "actuation_enabled": "I understand this runtime will physically control the configured HVAC equipment"
+        }
       }
+    },
+    "error": {
+      "actuation_confirmation_required": "Physical actuation must be explicitly enabled before production runtime can be created."
     },
     "abort": {
       "single_instance_allowed": "Only one HVAC Balancing instance can be configured."

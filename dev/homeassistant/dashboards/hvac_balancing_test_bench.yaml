@@ -251,11 +251,10 @@ views:
 
           It calculates controller demand but sends **no actuator commands**.
 
-          **beta.6:** each zone owns an independent Adaptive Episode
-          and a relative deadline based on its remaining effective cooling time.
-          Idle pauses that zone's deadline; Cooling resumes it from the saved
-          exposure. Diagnostic times use Home Assistant local time, and a
-          blocked Adaptive increase at PI maximum is reported as `saturated`.
+          **beta.7:** the validated Test Bench remains observation-only.
+          The integration now also contains a separately configured, explicitly
+          gated production runtime capable of physical booster and Nest assist
+          actuation. Test Bench entities never actuate equipment.
 
           Change the virtual temperatures and compare the calculated outputs
           below.

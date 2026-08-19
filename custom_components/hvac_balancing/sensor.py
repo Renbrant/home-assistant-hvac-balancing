@@ -127,11 +127,11 @@ class HVACBalancingObservationSensor(SensorEntity):
         self._metric = metric
 
         self._attr_name = (
-            f"HVAC Balancing Test {zone.name} {metric_name}"
+            f"{self._observer.entity_name_prefix} {zone.name} {metric_name}"
         )
 
         self._attr_unique_id = (
-            f"test_{zone.key}_{metric}"
+            f"{self._observer.unique_id_prefix}_{zone.key}_{metric}"
         )
 
         if metric == "effective_percentage":
@@ -210,7 +210,7 @@ class HVACBalancingObservationSensor(SensorEntity):
             return None
 
         return {
-            "observation_only": True,
+            "observation_only": self._observer.observation_only,
             "controller_event": snapshot.event.value,
             "adaptive_due_zone": snapshot.adaptive_due_zone,
             "hvac_mode": snapshot.hvac_mode,
@@ -358,11 +358,11 @@ class HVACBalancingTimelineSensor(SensorEntity):
         self._metric = metric
 
         self._attr_name = (
-            f"HVAC Balancing Test {name}"
+            f"{self._observer.entity_name_prefix} {name}"
         )
 
         self._attr_unique_id = (
-            f"test_timeline_{metric}"
+            f"{self._observer.unique_id_prefix}_timeline_{metric}"
         )
 
     @property
@@ -438,7 +438,7 @@ class HVACBalancingTimelineSensor(SensorEntity):
         )
 
         return {
-            "observation_only": True,
+            "observation_only": self._observer.observation_only,
             "current_time": _local_isoformat(
                 now
             ),
@@ -500,12 +500,12 @@ class HVACBalancingZoneDeadlineSensor(SensorEntity):
         self._zone = zone
 
         self._attr_name = (
-            f"HVAC Balancing Test "
+            f"{self._observer.entity_name_prefix} "
             f"{zone.name} Next Adaptive Due"
         )
 
         self._attr_unique_id = (
-            f"test_{zone.key}_next_adaptive_due"
+            f"{self._observer.unique_id_prefix}_{zone.key}_next_adaptive_due"
         )
 
     @property
@@ -603,7 +603,7 @@ class HVACBalancingZoneDeadlineSensor(SensorEntity):
             )
 
         return {
-            "observation_only": True,
+            "observation_only": self._observer.observation_only,
             "zone": self._zone.key,
             "deadline": _local_isoformat(
                 deadline
@@ -701,12 +701,12 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
         self._zone = zone
 
         self._attr_name = (
-            f"HVAC Balancing Test "
+            f"{self._observer.entity_name_prefix} "
             f"{zone.name} Adaptive Window"
         )
 
         self._attr_unique_id = (
-            f"test_{zone.key}_adaptive_window"
+            f"{self._observer.unique_id_prefix}_{zone.key}_adaptive_window"
         )
 
     @property
@@ -830,7 +830,7 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
             )
 
         return {
-            "observation_only": True,
+            "observation_only": self._observer.observation_only,
             "adaptive_strategy": "cooling_exposure",
             "zone": self._zone.key,
             "hvac_mode": snapshot.hvac_mode,

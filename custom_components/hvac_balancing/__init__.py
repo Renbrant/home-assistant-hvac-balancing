@@ -8,24 +8,30 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .actuator import HVACBalancingActuator
 from .configuration import (
     build_observation_zones,
     merged_entry_config,
     production_core_config,
+    stale_production_zone_unique_ids,
     validate_zone_records,
 )
 from .const import (
     CONF_ACTUATION_ENABLED,
     CONF_RUNTIME_MODE,
     CONF_ZONES,
+    DOMAIN,
     NAME,
     RUNTIME_MODE_PRODUCTION,
     RUNTIME_MODE_TEST_BENCH,
     VERSION,
 )
-from .observation import HVACBalancingObservationRuntime
+from .observation import (
+    HVACBalancingObservationRuntime,
+    ObservationZoneConfig,
+)
 from .runtime import HVACBalancingRuntimeData
 
 
@@ -37,6 +43,56 @@ PLATFORMS = (
 )
 
 type HVACBalancingConfigEntry = ConfigEntry[HVACBalancingRuntimeData]
+
+
+def _async_cleanup_stale_production_zone_entities(
+    hass: HomeAssistant,
+    entry: HVACBalancingConfigEntry,
+    zones: tuple[ObservationZoneConfig, ...],
+) -> None:
+    """Remove registry diagnostics belonging to zones no longer configured."""
+
+    registry = er.async_get(
+        hass
+    )
+
+    registry_entries = [
+        registry_entry
+        for registry_entry
+        in er.async_entries_for_config_entry(
+            registry,
+            entry.entry_id,
+        )
+        if registry_entry.platform == DOMAIN
+    ]
+
+    stale_unique_ids = stale_production_zone_unique_ids(
+        (
+            registry_entry.unique_id
+            for registry_entry in registry_entries
+        ),
+        (
+            zone.key
+            for zone in zones
+        ),
+    )
+
+    if not stale_unique_ids:
+        return
+
+    for registry_entry in registry_entries:
+        if registry_entry.unique_id not in stale_unique_ids:
+            continue
+
+        _LOGGER.info(
+            "Removing stale HVAC Balancing entity %s (%s)",
+            registry_entry.entity_id,
+            registry_entry.unique_id,
+        )
+
+        registry.async_remove(
+            registry_entry.entity_id
+        )
 
 
 async def async_setup(
@@ -141,6 +197,12 @@ async def async_setup_entry(
             )
 
             return False
+
+        _async_cleanup_stale_production_zone_entities(
+            hass,
+            entry,
+            zones,
+        )
 
         observer = HVACBalancingObservationRuntime(
             hass,

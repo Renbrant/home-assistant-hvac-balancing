@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from .const import (
@@ -22,6 +22,75 @@ REQUIRED_ZONE_KEYS = (
     CONF_ZONE_TEMPERATURE,
     CONF_ZONE_FAN,
 )
+
+
+PRODUCTION_ZONE_ENTITY_SUFFIXES = (
+    "base_p",
+    "adaptive_i",
+    "pi_target",
+    "effective_percentage",
+    "improvement_rate",
+    "adaptive_action",
+    "next_adaptive_due",
+    "adaptive_window",
+)
+
+
+def production_zone_id_from_unique_id(
+    unique_id: str,
+) -> str | None:
+    """Return a production zone ID for one managed diagnostic unique ID."""
+
+    prefix = "production_"
+
+    if not unique_id.startswith(prefix):
+        return None
+
+    for suffix in PRODUCTION_ZONE_ENTITY_SUFFIXES:
+        marker = f"_{suffix}"
+
+        if not unique_id.endswith(marker):
+            continue
+
+        zone_id = unique_id[
+            len(prefix):
+            -len(marker)
+        ]
+
+        if zone_id:
+            return zone_id
+
+    return None
+
+
+def stale_production_zone_unique_ids(
+    unique_ids: Iterable[str],
+    active_zone_ids: Iterable[str],
+) -> set[str]:
+    """Return managed diagnostic IDs belonging to removed production zones."""
+
+    active = set(
+        active_zone_ids
+    )
+
+    stale: set[str] = set()
+
+    for unique_id in unique_ids:
+        zone_id = production_zone_id_from_unique_id(
+            unique_id
+        )
+
+        if zone_id is None:
+            continue
+
+        if zone_id in active:
+            continue
+
+        stale.add(
+            unique_id
+        )
+
+    return stale
 
 
 def merged_entry_config(entry: Any) -> dict[str, Any]:

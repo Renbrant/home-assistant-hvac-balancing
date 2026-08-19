@@ -408,3 +408,40 @@ def test_config_flow_menu_labels_follow_home_assistant_schema() -> None:
         strings["config"]["abort"]["single_instance_allowed"]
         == "Only one HVAC Balancing instance can be configured."
     )
+
+def test_removed_zones_cleanup_entity_registry() -> None:
+    """Removed dynamic zones must not leave registry diagnostics behind."""
+
+    init = read("__init__.py")
+    configuration = read("configuration.py")
+
+    assert "entity_registry as er" in init
+    assert "er.async_entries_for_config_entry" in init
+    assert "registry.async_remove" in init
+
+    assert (
+        "_async_cleanup_stale_production_zone_entities"
+        in init
+    )
+
+    assert (
+        "stale_production_zone_unique_ids"
+        in configuration
+    )
+
+    assert (
+        "PRODUCTION_ZONE_ENTITY_SUFFIXES"
+        in configuration
+    )
+
+    cleanup_call = init.rfind(
+        "_async_cleanup_stale_production_zone_entities("
+    )
+
+    platform_setup = init.find(
+        "async_forward_entry_setups"
+    )
+
+    assert cleanup_call != -1
+    assert platform_setup != -1
+    assert cleanup_call < platform_setup

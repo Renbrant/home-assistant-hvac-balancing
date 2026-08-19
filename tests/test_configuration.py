@@ -94,6 +94,9 @@ merged_entry_config = configuration.merged_entry_config
 normalize_zone_records = configuration.normalize_zone_records
 production_core_config = configuration.production_core_config
 validate_zone_records = configuration.validate_zone_records
+stale_production_zone_unique_ids = (
+    configuration.stale_production_zone_unique_ids
+)
 
 CONF_REFERENCE_SENSOR = const.CONF_REFERENCE_SENSOR
 CONF_THERMOSTAT = const.CONF_THERMOSTAT
@@ -346,6 +349,73 @@ class ConfigurationNormalizationTests(unittest.TestCase):
         self.assertEqual(
             reference,
             "sensor.reference",
+        )
+
+
+class ProductionEntityRegistryCleanupTests(unittest.TestCase):
+    """Verify removed dynamic zones do not leave diagnostic entities behind."""
+
+    def test_removed_zone_diagnostics_are_all_stale(self) -> None:
+        active_zone = "active123"
+        removed_zone = "removed456"
+
+        active_ids = {
+            f"production_{active_zone}_{suffix}"
+            for suffix
+            in configuration.PRODUCTION_ZONE_ENTITY_SUFFIXES
+        }
+
+        removed_ids = {
+            f"production_{removed_zone}_{suffix}"
+            for suffix
+            in configuration.PRODUCTION_ZONE_ENTITY_SUFFIXES
+        }
+
+        global_ids = {
+            "production_timeline_current_time",
+            "production_timeline_last_controller_update",
+            "production_central_assist",
+        }
+
+        stale = stale_production_zone_unique_ids(
+            (
+                active_ids
+                | removed_ids
+                | global_ids
+            ),
+            {active_zone},
+        )
+
+        self.assertEqual(
+            stale,
+            removed_ids,
+        )
+
+        self.assertEqual(
+            len(stale),
+            8,
+        )
+
+    def test_global_and_active_entities_are_preserved(self) -> None:
+        active_zone = "abcdef123456"
+
+        unique_ids = {
+            f"production_{active_zone}_base_p",
+            f"production_{active_zone}_adaptive_window",
+            "production_timeline_current_time",
+            "production_timeline_next_watchdog",
+            "production_central_assist",
+            "unrelated_integration_entity",
+        }
+
+        stale = stale_production_zone_unique_ids(
+            unique_ids,
+            {active_zone},
+        )
+
+        self.assertEqual(
+            stale,
+            set(),
         )
 
 

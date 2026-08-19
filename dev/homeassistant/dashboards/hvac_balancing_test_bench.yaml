@@ -203,7 +203,7 @@ views:
           - script.hvac_test_reset_virtual_boosters
 
       - type: entities
-        title: Controller Timing & Cooling Exposure
+        title: Adaptive Episode Scheduler
         show_header_toggle: false
         entities:
 
@@ -216,23 +216,32 @@ views:
           - entity: sensor.hvac_balancing_test_last_controller_event
             name: Last Controller Event
 
-          - entity: sensor.hvac_balancing_test_last_adaptive_tick
-            name: Last 5-Minute Tick
+          - entity: sensor.hvac_balancing_test_last_watchdog
+            name: Last Safety Watchdog
 
-          - entity: sensor.hvac_balancing_test_next_adaptive_tick
-            name: Next 5-Minute Tick
+          - entity: sensor.hvac_balancing_test_next_watchdog
+            name: Next Safety Watchdog
 
-          - entity: sensor.hvac_balancing_test_next_adaptive_tick_in
-            name: Next Tick In
+          - entity: sensor.hvac_balancing_test_next_watchdog_in
+            name: Next Watchdog In
 
           - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
             name: Bed 1 - Cooling Exposure
 
+          - entity: sensor.hvac_balancing_test_bed_1_next_adaptive_due
+            name: Bed 1 - Next Adaptive Due
+
           - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
             name: Bed 2 - Cooling Exposure
 
+          - entity: sensor.hvac_balancing_test_bed_2_next_adaptive_due
+            name: Bed 2 - Next Adaptive Due
+
           - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
             name: Bed 3 - Cooling Exposure
+
+          - entity: sensor.hvac_balancing_test_bed_3_next_adaptive_due
+            name: Bed 3 - Next Adaptive Due
 
       - type: markdown
         title: Python Controller - Observation Only
@@ -242,8 +251,10 @@ views:
 
           It calculates controller demand but sends **no actuator commands**.
 
-          **beta.4:** Adaptive I now evaluates actual effective cooling exposure
-          rather than consuming idle wall-clock time.
+          **beta.5:** each zone now owns an independent Adaptive Episode
+          and a relative deadline based on its remaining effective cooling time.
+          Idle pauses that zone's deadline; Cooling resumes it from the saved
+          exposure. There is no global Adaptive decision tick.
 
           Change the virtual temperatures and compare the calculated outputs
           below.

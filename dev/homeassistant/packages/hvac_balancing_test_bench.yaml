@@ -1053,7 +1053,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "Bed2 Base=8 I=0 PI=8. Cooling exposure starts at 00:00 / 10:00 while HVAC is Cooling."
+          value: "Bed2 Base=8 I=0 PI=8. Bed2 starts its own 10-minute cooling episode and relative deadline."
 
       - action: climate.set_hvac_mode
         target:
@@ -1076,7 +1076,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "HVAC becomes Idle. Bed2 cooling exposure MUST PAUSE and keep the same accumulated time."
+          value: "HVAC becomes Idle. Bed2 cooling exposure and Bed2 relative deadline MUST PAUSE."
 
       - action: input_number.set_value
         target:
@@ -1099,7 +1099,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "HVAC returns Cooling. Bed2 exposure resumes. At 10:00 total cooling, next tick should raise I to 1."
+          value: "HVAC returns Cooling. Bed2 exposure resumes with a new deadline from the remaining cooling time. At 10:00 total cooling the relative deadline should raise I to 1 immediately."
 
       - action: input_number.set_value
         target:

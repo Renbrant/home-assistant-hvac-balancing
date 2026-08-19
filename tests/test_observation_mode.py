@@ -41,17 +41,21 @@ def test_observation_adapter_files_exist() -> None:
         assert (INTEGRATION / name).is_file()
 
 
-def test_observation_adapter_uses_current_event_helpers() -> None:
-    """Verify push updates and aligned five-minute ticks."""
+def test_observation_adapter_uses_relative_zone_deadlines() -> None:
+    """Verify push updates, relative deadlines, and safety watchdog."""
 
     source = read("observation.py")
 
     assert "async_track_state_change_event" in source
+    assert "async_call_later" in source
     assert "async_track_time_change" in source
-    assert "minute=range(0, 60, 5)" in source
+    assert "minute=range(0, 60, 10)" in source
+
+    assert "minute=range(0, 60, 5)" not in source
+    assert "def _async_adaptive_tick" not in source
 
     assert "ControllerEvent.NORMAL_UPDATE" in source
-    assert "ControllerEvent.ADAPTIVE_TICK" in source
+    assert "ControllerEvent.ADAPTIVE_DUE" in source
     assert "ControllerEvent.HVAC_MODE_CHANGE" in source
     assert "ControllerEvent.STARTUP" in source
 
@@ -181,7 +185,7 @@ def test_dashboard_contains_python_observation_metrics() -> None:
         assert entity_id in dashboard
 
 def test_observation_timing_diagnostics_exist() -> None:
-    """Verify clock, ticks, and Adaptive countdown entities exist."""
+    """Verify watchdog, per-zone deadlines, and exposure diagnostics."""
 
     observation = read("observation.py")
     sensor = read("sensor.py")
@@ -189,21 +193,26 @@ def test_observation_timing_diagnostics_exist() -> None:
 
     assert "_async_timeline_heartbeat" in observation
     assert "second=range(0, 60, 10)" in observation
-    assert "self.last_adaptive_tick = now" in observation
-    assert "_timeline_listeners" in observation
+
+    assert "_async_watchdog" in observation
+    assert "self.last_watchdog = now" in observation
+
+    assert "_zone_deadline_unsubscribers" in observation
+    assert "zone_deadlines" in observation
+    assert "async_call_later" in observation
 
     expected_sensor_markers = (
         "HVACBalancingTimelineSensor",
+        "HVACBalancingZoneDeadlineSensor",
         "HVACBalancingAdaptiveWindowSensor",
         '"current_time"',
         '"last_controller_update"',
         '"last_controller_event"',
-        '"last_adaptive_tick"',
-        '"next_adaptive_tick"',
-        '"next_tick_in"',
+        '"last_watchdog"',
+        '"next_watchdog"',
+        '"next_watchdog_in"',
         "_projected_cooling_exposure",
         "required_cooling_exposure_seconds",
-        "READY",
     )
 
     for marker in expected_sensor_markers:
@@ -213,17 +222,19 @@ def test_observation_timing_diagnostics_exist() -> None:
         "sensor.hvac_balancing_test_current_time",
         "sensor.hvac_balancing_test_last_controller_update",
         "sensor.hvac_balancing_test_last_controller_event",
-        "sensor.hvac_balancing_test_last_adaptive_tick",
-        "sensor.hvac_balancing_test_next_adaptive_tick",
-        "sensor.hvac_balancing_test_next_adaptive_tick_in",
+        "sensor.hvac_balancing_test_last_watchdog",
+        "sensor.hvac_balancing_test_next_watchdog",
+        "sensor.hvac_balancing_test_next_watchdog_in",
         "sensor.hvac_balancing_test_bed_1_adaptive_window",
         "sensor.hvac_balancing_test_bed_2_adaptive_window",
         "sensor.hvac_balancing_test_bed_3_adaptive_window",
+        "sensor.hvac_balancing_test_bed_1_next_adaptive_due",
+        "sensor.hvac_balancing_test_bed_2_next_adaptive_due",
+        "sensor.hvac_balancing_test_bed_3_next_adaptive_due",
     )
 
     for entity_id in expected_entities:
         assert entity_id in dashboard
-
 
 def test_timeline_heartbeat_cannot_recalculate_controller() -> None:
     """Protect controller state from display heartbeat updates."""
@@ -255,11 +266,12 @@ def test_observation_adapter_uses_cooling_exposure_strategy() -> None:
 
 
 def test_dashboard_exposes_cooling_exposure_diagnostics() -> None:
-    """Verify exposure, trend, and Adaptive action are visible."""
+    """Verify beta.5 exposure, deadlines, trend, and Adaptive action."""
 
     dashboard = DASHBOARD.read_text(encoding="utf-8")
 
-    assert "Controller Timing & Cooling Exposure" in dashboard
+    assert "Adaptive Episode Scheduler" in dashboard
+    assert "Controller Timing & Cooling Exposure" not in dashboard
 
     for bed in (1, 2, 3):
         expected = (
@@ -296,3 +308,85 @@ def test_cooling_exposure_display_is_heartbeat_only() -> None:
     assert "calculate_zone(" not in projector
     assert "_recalculate(" not in projector
     assert "ZoneState(" not in projector
+
+def test_watchdog_cannot_issue_adaptive_due() -> None:
+    """Verify periodic watchdog is recovery-only."""
+
+    observation = read("observation.py")
+
+    start = observation.index(
+        "def _async_watchdog"
+    )
+
+    end = observation.index(
+        "def _async_timeline_heartbeat",
+        start,
+    )
+
+    watchdog = observation[start:end]
+
+    assert "ControllerEvent.NORMAL_UPDATE" in watchdog
+    assert "ControllerEvent.ADAPTIVE_DUE" not in watchdog
+    assert "ControllerEvent.ADAPTIVE_TICK" not in watchdog
+
+
+def test_zone_deadline_callback_targets_exactly_one_zone() -> None:
+    """Verify one expired timer cannot evaluate every zone as due."""
+
+    observation = read("observation.py")
+
+    assert "adaptive_due_zone=zone_key" in observation
+    assert "zone.key != adaptive_due_zone" in observation
+    assert "zone_event = ControllerEvent.NORMAL_UPDATE" in observation
+
+
+def test_idle_cancels_relative_zone_deadlines_by_eligibility() -> None:
+    """Verify deadlines run only while central HVAC is actively cooling."""
+
+    observation = read("observation.py")
+
+    start = observation.index(
+        "def _zone_deadline_is_eligible"
+    )
+
+    end = observation.index(
+        "def _sync_zone_deadlines",
+        start,
+    )
+
+    eligibility = observation[start:end]
+
+    assert "snapshot.hvac_mode != COOL_MODE" in eligibility
+    assert "snapshot.hvac_action != COOLING_ACTION" in eligibility
+    assert "return False" in eligibility
+
+
+def test_relative_deadline_is_rebuilt_from_remaining_exposure() -> None:
+    """Verify timer delay is required exposure minus accumulated cooling."""
+
+    observation = read("observation.py")
+
+    start = observation.index(
+        "def _sync_zone_deadlines"
+    )
+
+    end = observation.index(
+        "def _async_zone_adaptive_due",
+        start,
+    )
+
+    scheduler = observation[start:end]
+
+    assert "required - accumulated" in scheduler
+    assert "async_call_later(" in scheduler
+    assert "_cancel_zone_deadline" in scheduler
+
+
+def test_global_adaptive_tick_is_absent_from_test_bench_adapter() -> None:
+    """Verify beta.5 Test Bench has no global Adaptive decision tick."""
+
+    observation = read("observation.py")
+
+    assert "def _async_adaptive_tick" not in observation
+    assert "minute=range(0, 60, 5)" not in observation
+    assert "ControllerEvent.ADAPTIVE_TICK" not in observation

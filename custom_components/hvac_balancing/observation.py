@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import partial
 
 from homeassistant.core import (
     Event,
@@ -22,12 +23,15 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.helpers.event import (
+    async_call_later,
     async_track_state_change_event,
     async_track_time_change,
 )
 from homeassistant.util import dt as dt_util
 
 from .controller import (
+    COOLING_ACTION,
+    COOL_MODE,
     COOLING_EXPOSURE_SETTINGS,
     ControllerEvent,
     ZoneDecision,
@@ -75,6 +79,7 @@ class ObservationSnapshot:
     """One complete observation-only controller calculation."""
 
     event: ControllerEvent
+    adaptive_due_zone: str | None
     updated_at: datetime
     hvac_mode: str | None
     hvac_action: str | None
@@ -98,12 +103,23 @@ class HVACBalancingObservationRuntime:
         # The heartbeat updates Test Bench timing entities but never executes
         # calculate_zone() and never mutates Adaptive controller state.
         self.display_now: datetime = dt_util.now()
-        self.last_adaptive_tick: datetime | None = None
+        self.last_watchdog: datetime | None = None
 
         self._zone_states: dict[str, ZoneState] = {
             zone.key: ZoneState()
             for zone in TEST_BENCH_ZONES
         }
+
+        # Independent relative deadline for each Adaptive episode.
+        self.zone_deadlines: dict[str, datetime | None] = {
+            zone.key: None
+            for zone in TEST_BENCH_ZONES
+        }
+
+        self._zone_deadline_unsubscribers: dict[
+            str,
+            Callable[[], None],
+        ] = {}
 
         self._listeners: set[Callable[[], None]] = set()
         self._timeline_listeners: set[Callable[[], None]] = set()
@@ -140,13 +156,17 @@ class HVACBalancingObservationRuntime:
             )
         )
 
-        # Match the legacy time_pattern minutes: "/5" behavior rather than
-        # using an interval relative to integration load time.
+        # Safety/recovery watchdog only.
+        #
+        # This is NOT an Adaptive decision trigger. It performs an ordinary
+        # NORMAL_UPDATE so missed state events can be recovered and per-zone
+        # deadlines can be repaired. Adaptive I decisions are owned exclusively
+        # by each zone's relative async_call_later() deadline.
         self._unsubscribers.append(
             async_track_time_change(
                 self.hass,
-                self._async_adaptive_tick,
-                minute=range(0, 60, 5),
+                self._async_watchdog,
+                minute=range(0, 60, 10),
                 second=0,
             )
         )
@@ -168,7 +188,9 @@ class HVACBalancingObservationRuntime:
 
     @callback
     def async_stop(self) -> None:
-        """Stop all observation listeners."""
+        """Stop all observation listeners and zone deadlines."""
+
+        self._cancel_all_zone_deadlines()
 
         for unsubscribe in self._unsubscribers:
             unsubscribe()
@@ -244,16 +266,169 @@ class HVACBalancingObservationRuntime:
         )
 
     @callback
-    def _async_adaptive_tick(
+    def _cancel_zone_deadline(
+        self,
+        zone_key: str,
+    ) -> None:
+        """Cancel one pending relative Adaptive deadline."""
+
+        unsubscribe = self._zone_deadline_unsubscribers.pop(
+            zone_key,
+            None,
+        )
+
+        if unsubscribe is not None:
+            unsubscribe()
+
+        self.zone_deadlines[zone_key] = None
+
+    @callback
+    def _cancel_all_zone_deadlines(self) -> None:
+        """Cancel every pending per-zone Adaptive deadline."""
+
+        for zone in TEST_BENCH_ZONES:
+            self._cancel_zone_deadline(
+                zone.key
+            )
+
+    def _zone_deadline_is_eligible(
+        self,
+        *,
+        snapshot: ObservationSnapshot,
+        decision: ZoneDecision,
+    ) -> bool:
+        """Return whether one zone should currently own a running deadline."""
+
+        if snapshot.hvac_mode != COOL_MODE:
+            return False
+
+        if snapshot.hvac_action != COOLING_ACTION:
+            return False
+
+        if not decision.valid_temperatures:
+            return False
+
+        if decision.reference_error is None:
+            return False
+
+        if decision.required_cooling_exposure_seconds <= 0:
+            return False
+
+        if decision.adaptive_action in (
+            "inactive",
+            "invalid_input",
+            "invalid_reset",
+            "reset",
+            "no_headroom",
+        ):
+            return False
+
+        return True
+
+    @callback
+    def _sync_zone_deadlines(
         self,
         now: datetime,
     ) -> None:
-        """Run the five-minute Adaptive I trigger."""
+        """Cancel/rebuild independent deadlines from current zone state."""
 
-        self.last_adaptive_tick = now
+        snapshot = self.snapshot
+
+        if snapshot is None:
+            self._cancel_all_zone_deadlines()
+            return
+
+        for zone in TEST_BENCH_ZONES:
+            self._cancel_zone_deadline(
+                zone.key
+            )
+
+            decision = snapshot.decisions.get(
+                zone.key
+            )
+
+            if decision is None:
+                continue
+
+            if not self._zone_deadline_is_eligible(
+                snapshot=snapshot,
+                decision=decision,
+            ):
+                continue
+
+            required = max(
+                float(
+                    decision.required_cooling_exposure_seconds
+                ),
+                0.0,
+            )
+
+            accumulated = max(
+                float(
+                    decision.cooling_exposure_seconds
+                ),
+                0.0,
+            )
+
+            remaining = max(
+                required - accumulated,
+                0.0,
+            )
+
+            deadline = (
+                now
+                + timedelta(
+                    seconds=remaining
+                )
+            )
+
+            self.zone_deadlines[zone.key] = deadline
+
+            self._zone_deadline_unsubscribers[
+                zone.key
+            ] = async_call_later(
+                self.hass,
+                remaining,
+                partial(
+                    self._async_zone_adaptive_due,
+                    zone.key,
+                ),
+            )
+
+    @callback
+    def _async_zone_adaptive_due(
+        self,
+        zone_key: str,
+        now: datetime,
+    ) -> None:
+        """Evaluate only the zone whose relative cooling deadline expired."""
+
+        # The callback has fired, so its cancellation handle is no longer
+        # considered an active deadline.
+        self._zone_deadline_unsubscribers.pop(
+            zone_key,
+            None,
+        )
+
+        self.zone_deadlines[zone_key] = None
 
         self._recalculate(
-            ControllerEvent.ADAPTIVE_TICK,
+            ControllerEvent.ADAPTIVE_DUE,
+            now,
+            adaptive_due_zone=zone_key,
+        )
+
+    @callback
+    def _async_watchdog(
+        self,
+        now: datetime,
+    ) -> None:
+        """Recover state/deadlines without making an Adaptive decision."""
+
+        self.last_watchdog = now
+
+        self._recalculate(
+            ControllerEvent.NORMAL_UPDATE,
             now,
         )
 
@@ -287,10 +462,28 @@ class HVACBalancingObservationRuntime:
         self,
         event: ControllerEvent,
         now: datetime,
+        *,
+        adaptive_due_zone: str | None = None,
     ) -> None:
-        """Calculate every virtual zone without commanding equipment."""
+        """Calculate virtual zones without commanding equipment.
+
+        ADAPTIVE_DUE is routed only to adaptive_due_zone. Every other zone
+        receives NORMAL_UPDATE during that same snapshot.
+        """
 
         self.display_now = now
+
+        if (
+            event == ControllerEvent.ADAPTIVE_DUE
+            and adaptive_due_zone
+            not in {
+                zone.key
+                for zone in TEST_BENCH_ZONES
+            }
+        ):
+            raise ValueError(
+                "ADAPTIVE_DUE requires a valid adaptive_due_zone"
+            )
 
         thermostat_state = self.hass.states.get(
             TEST_BENCH_THERMOSTAT
@@ -345,13 +538,21 @@ class HVACBalancingObservationRuntime:
                 else None
             )
 
+            zone_event = event
+
+            if (
+                event == ControllerEvent.ADAPTIVE_DUE
+                and zone.key != adaptive_due_zone
+            ):
+                zone_event = ControllerEvent.NORMAL_UPDATE
+
             decision = calculate_zone(
                 ZoneInput(
                     room_temperature=room_temperature,
                     reference_temperature=reference_temperature,
                     hvac_mode=hvac_mode,
                     hvac_action=hvac_action,
-                    event=event,
+                    event=zone_event,
                 ),
                 self._zone_states[zone.key],
                 now,
@@ -368,12 +569,24 @@ class HVACBalancingObservationRuntime:
 
         self.snapshot = ObservationSnapshot(
             event=event,
+            adaptive_due_zone=adaptive_due_zone,
             updated_at=now,
             hvac_mode=hvac_mode,
             hvac_action=hvac_action,
             test_bench_ready=test_bench_ready,
             decisions=decisions,
             central_assist_required=assist_required,
+        )
+
+        # State changes can alter:
+        # - HVAC cooling/idle status;
+        # - error severity and therefore required exposure;
+        # - accumulated exposure;
+        # - thermal reset/no-headroom eligibility.
+        #
+        # Rebuild all zone deadlines from the newly committed snapshot.
+        self._sync_zone_deadlines(
+            now
         )
 
         for listener in tuple(self._listeners):

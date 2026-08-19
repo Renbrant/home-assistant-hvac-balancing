@@ -342,10 +342,10 @@ def test_guided_adaptive_scenarios_describe_cooling_exposure() -> None:
     package = PACKAGE.read_text(encoding="utf-8")
 
     expected = (
-        "Cooling exposure starts at 00:00 / 10:00",
-        "cooling exposure MUST PAUSE",
-        "exposure resumes",
-        "10:00 total cooling",
+        "own 10-minute cooling episode",
+        "relative deadline MUST PAUSE",
+        "exposure resumes with a new deadline",
+        "raise I to 1 immediately",
     )
 
     for marker in expected:
@@ -360,3 +360,5 @@ def test_guided_adaptive_scenarios_describe_cooling_exposure() -> None:
         "Adaptive Window countdown MUST continue"
         not in package
     )
+
+    assert "next tick should raise I to 1" not in package

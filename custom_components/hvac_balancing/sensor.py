@@ -75,18 +75,25 @@ async def async_setup_entry(
             ),
             HVACBalancingTimelineSensor(
                 observer=observer,
-                metric="last_adaptive_tick",
-                name="Last Adaptive Tick",
+                metric="last_watchdog",
+                name="Last Watchdog",
             ),
             HVACBalancingTimelineSensor(
                 observer=observer,
-                metric="next_adaptive_tick",
-                name="Next Adaptive Tick",
+                metric="next_watchdog",
+                name="Next Watchdog",
             ),
             HVACBalancingTimelineSensor(
                 observer=observer,
-                metric="next_tick_in",
-                name="Next Adaptive Tick In",
+                metric="next_watchdog_in",
+                name="Next Watchdog In",
+            ),
+            *(
+                HVACBalancingZoneDeadlineSensor(
+                    observer=observer,
+                    zone=zone,
+                )
+                for zone in observer.zones
             ),
             *(
                 HVACBalancingAdaptiveWindowSensor(
@@ -204,6 +211,7 @@ class HVACBalancingObservationSensor(SensorEntity):
         return {
             "observation_only": True,
             "controller_event": snapshot.event.value,
+            "adaptive_due_zone": snapshot.adaptive_due_zone,
             "hvac_mode": snapshot.hvac_mode,
             "hvac_action": snapshot.hvac_action,
             "temperature_delta": decision.temperature_delta,
@@ -280,20 +288,20 @@ def _format_duration(total_seconds: int) -> str:
     return f"{minutes:02d}:{seconds:02d}"
 
 
-def _next_five_minute_tick(now):
-    """Return the next local wall-clock five-minute boundary."""
+def _next_ten_minute_watchdog(now):
+    """Return the next local wall-clock ten-minute watchdog boundary."""
 
     minute_floor = now.replace(
         second=0,
         microsecond=0,
     )
 
-    remainder = minute_floor.minute % 5
+    remainder = minute_floor.minute % 10
 
     minutes = (
-        5
+        10
         if remainder == 0
-        else 5 - remainder
+        else 10 - remainder
     )
 
     return minute_floor + timedelta(
@@ -342,7 +350,9 @@ class HVACBalancingTimelineSensor(SensorEntity):
             return None
 
         now = self._observer.display_now
-        next_tick = _next_five_minute_tick(now)
+        next_watchdog = _next_ten_minute_watchdog(
+            now
+        )
 
         if self._metric == "current_time":
             return _format_time(now)
@@ -355,21 +365,23 @@ class HVACBalancingTimelineSensor(SensorEntity):
         if self._metric == "last_controller_event":
             return snapshot.event.value
 
-        if self._metric == "last_adaptive_tick":
-            if self._observer.last_adaptive_tick is None:
+        if self._metric == "last_watchdog":
+            if self._observer.last_watchdog is None:
                 return "Not yet"
 
             return _format_time(
-                self._observer.last_adaptive_tick
+                self._observer.last_watchdog
             )
 
-        if self._metric == "next_adaptive_tick":
-            return _format_time(next_tick)
+        if self._metric == "next_watchdog":
+            return _format_time(
+                next_watchdog
+            )
 
-        if self._metric == "next_tick_in":
+        if self._metric == "next_watchdog_in":
             seconds = int(
                 (
-                    next_tick
+                    next_watchdog
                     - now
                 ).total_seconds()
             )
@@ -390,23 +402,26 @@ class HVACBalancingTimelineSensor(SensorEntity):
             return None
 
         now = self._observer.display_now
-        next_tick = _next_five_minute_tick(now)
+        next_watchdog = _next_ten_minute_watchdog(
+            now
+        )
 
         return {
             "observation_only": True,
             "current_time": now.isoformat(),
             "last_controller_update": snapshot.updated_at.isoformat(),
             "last_controller_event": snapshot.event.value,
-            "last_adaptive_tick": (
-                self._observer.last_adaptive_tick.isoformat()
-                if self._observer.last_adaptive_tick is not None
+            "adaptive_due_zone": snapshot.adaptive_due_zone,
+            "last_watchdog": (
+                self._observer.last_watchdog.isoformat()
+                if self._observer.last_watchdog is not None
                 else None
             ),
-            "next_adaptive_tick": next_tick.isoformat(),
-            "seconds_to_next_tick": max(
+            "next_watchdog": next_watchdog.isoformat(),
+            "seconds_to_next_watchdog": max(
                 int(
                     (
-                        next_tick
+                        next_watchdog
                         - now
                     ).total_seconds()
                 ),
@@ -431,6 +446,165 @@ class HVACBalancingTimelineSensor(SensorEntity):
 
         self.async_write_ha_state()
 
+
+
+class HVACBalancingZoneDeadlineSensor(SensorEntity):
+    """Display one zone's independently scheduled Adaptive deadline."""
+
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        *,
+        observer: HVACBalancingObservationRuntime,
+        zone: ObservationZoneConfig,
+    ) -> None:
+        """Initialize relative Adaptive deadline diagnostic."""
+
+        self._observer = observer
+        self._zone = zone
+
+        self._attr_name = (
+            f"HVAC Balancing Test "
+            f"{zone.name} Next Adaptive Due"
+        )
+
+        self._attr_unique_id = (
+            f"test_{zone.key}_next_adaptive_due"
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return whether the runtime has produced this zone."""
+
+        snapshot = self._observer.snapshot
+
+        return (
+            snapshot is not None
+            and self._zone.key in snapshot.decisions
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return absolute due time, Paused, or Not scheduled."""
+
+        snapshot = self._observer.snapshot
+
+        if snapshot is None:
+            return None
+
+        decision = snapshot.decisions.get(
+            self._zone.key
+        )
+
+        if decision is None:
+            return None
+
+        deadline = self._observer.zone_deadlines.get(
+            self._zone.key
+        )
+
+        if deadline is not None:
+            return _format_time(
+                deadline
+            )
+
+        if (
+            snapshot.hvac_mode == COOL_MODE
+            and snapshot.hvac_action != COOLING_ACTION
+            and decision.reference_error is not None
+            and decision.required_cooling_exposure_seconds > 0
+            and decision.adaptive_action
+            not in (
+                "reset",
+                "no_headroom",
+                "invalid_input",
+                "invalid_reset",
+                "inactive",
+            )
+        ):
+            return "Paused"
+
+        if decision.adaptive_action == "no_headroom":
+            return "No headroom"
+
+        return "Not scheduled"
+
+    @property
+    def extra_state_attributes(
+        self,
+    ) -> dict[str, Any] | None:
+        """Expose relative deadline diagnostics."""
+
+        snapshot = self._observer.snapshot
+
+        if snapshot is None:
+            return None
+
+        decision = snapshot.decisions.get(
+            self._zone.key
+        )
+
+        if decision is None:
+            return None
+
+        now = self._observer.display_now
+
+        deadline = self._observer.zone_deadlines.get(
+            self._zone.key
+        )
+
+        seconds_to_due = None
+
+        if deadline is not None:
+            seconds_to_due = max(
+                int(
+                    (
+                        deadline
+                        - now
+                    ).total_seconds()
+                ),
+                0,
+            )
+
+        return {
+            "observation_only": True,
+            "zone": self._zone.key,
+            "deadline": (
+                deadline.isoformat()
+                if deadline is not None
+                else None
+            ),
+            "seconds_to_due": seconds_to_due,
+            "hvac_mode": snapshot.hvac_mode,
+            "hvac_action": snapshot.hvac_action,
+            "cooling_exposure_seconds": (
+                decision.cooling_exposure_seconds
+            ),
+            "required_cooling_exposure_seconds": (
+                decision.required_cooling_exposure_seconds
+            ),
+            "reference_error": decision.reference_error,
+            "adaptive_i": decision.adaptive_boost,
+            "adaptive_action": decision.adaptive_action,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to display timeline updates."""
+
+        await super().async_added_to_hass()
+
+        self.async_on_remove(
+            self._observer.async_add_timeline_listener(
+                self._handle_timeline_update
+            )
+        )
+
+    @callback
+    def _handle_timeline_update(self) -> None:
+        """Refresh relative deadline display."""
+
+        self.async_write_ha_state()
 
 def _projected_cooling_exposure(
     *,
@@ -651,7 +825,7 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
                 progress * 100,
                 1,
             ),
-            "ready_for_next_adaptive_tick": (
+            "ready_for_adaptive_due": (
                 required > 0
                 and exposure >= required
             ),

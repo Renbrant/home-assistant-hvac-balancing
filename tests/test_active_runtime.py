@@ -481,3 +481,72 @@ def test_central_assist_is_installation_agnostic() -> None:
 
     assert "DEFAULT_CENTRAL_ASSIST_MODE" in configuration
     assert "CENTRAL_ASSIST_MODE_DISABLED" in configuration
+
+def test_central_assist_reconciles_real_state_drift() -> None:
+    """Owned Central Assist state must be verified against HA runtime state."""
+
+    actuator = read("actuator.py")
+
+    assert (
+        "def _central_assist_state_matches"
+        in actuator
+    )
+
+    assert (
+        "self.hass.states.get("
+        in actuator
+    )
+
+    assert (
+        "state.state == STATE_ON"
+        in actuator
+    )
+
+    assert (
+        "state.attributes.get("
+        in actuator
+    )
+
+    assert (
+        "ATTR_FAN_MODE"
+        in actuator
+    )
+
+    apply_start = actuator.index(
+        "async def _async_apply_central_assist"
+    )
+
+    request_start = actuator.index(
+        "async def _async_request_central_assist",
+        apply_start,
+    )
+
+    apply_section = actuator[
+        apply_start:request_start
+    ]
+
+    assert (
+        "if self._central_assist_state_matches():"
+        in apply_section
+    )
+
+    assert (
+        "if self._assist_requested:\n                return"
+        not in apply_section
+    )
+
+    state_check = apply_section.index(
+        "if self._central_assist_state_matches():"
+    )
+
+    request_call = apply_section.index(
+        "success = await self._async_request_central_assist()",
+        state_check,
+    )
+
+    ownership_claim = apply_section.index(
+        "self._assist_requested = True",
+        request_call,
+    )
+
+    assert state_check < request_call < ownership_claim

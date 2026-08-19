@@ -367,7 +367,12 @@ class HVACBalancingActuator:
 
                 return
 
-            if self._assist_requested:
+            # Reconcile against the actual Home Assistant state rather than
+            # trusting the in-memory ownership flag as proof that airflow is
+            # still active. If the state already matches but HVAC Balancing
+            # did not start it, leave it unowned so we never turn off another
+            # automation's or a manual Central Assist request.
+            if self._central_assist_state_matches():
                 return
 
             success = await self._async_request_central_assist()
@@ -390,6 +395,48 @@ class HVACBalancingActuator:
             self._assist_off_task = self.hass.async_create_task(
                 self._async_delayed_assist_off()
             )
+
+    def _central_assist_state_matches(self) -> bool:
+        """Return whether the configured Central Assist is actually active."""
+
+        mode = self._central_assist.mode
+
+        if mode == CENTRAL_ASSIST_MODE_FAN:
+            fan_entity_id = self._central_assist.fan_entity_id
+
+            if fan_entity_id is None:
+                return False
+
+            state = self.hass.states.get(
+                fan_entity_id
+            )
+
+            return (
+                state is not None
+                and state.state == STATE_ON
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_CLIMATE:
+            fan_mode_on = self._central_assist.fan_mode_on
+
+            if fan_mode_on is None:
+                return False
+
+            state = self.hass.states.get(
+                self._thermostat_entity_id
+            )
+
+            if state is None:
+                return False
+
+            return (
+                state.attributes.get(
+                    ATTR_FAN_MODE
+                )
+                == fan_mode_on
+            )
+
+        return False
 
     async def _async_request_central_assist(self) -> bool:
         """Start Central Assist through the selected adapter."""

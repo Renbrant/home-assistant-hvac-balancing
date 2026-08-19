@@ -374,3 +374,37 @@ def test_actuator_receives_dynamic_zone_tuple() -> None:
     assert "zones=zones" in init
 
     assert "_production_zones" not in init
+
+def test_config_flow_menu_labels_follow_home_assistant_schema() -> None:
+    """Menu labels must live under step.<step_id>.menu_options."""
+
+    import json
+
+    strings = json.loads(
+        read("strings.json")
+    )
+
+    user_step = strings["config"]["step"]["user"]
+
+    assert user_step["menu_options"] == {
+        "test_bench": "Test Bench",
+        "production": "Production Active Control",
+    }
+
+    assert "menu" not in strings["config"]
+
+    options_step = strings["options"]["step"]["init"]
+
+    assert options_step["menu_options"] == {
+        "system": "System entities",
+        "add_zone": "Add zone",
+        "edit_zone": "Edit zone",
+        "remove_zone": "Remove zone",
+    }
+
+    assert "menu" not in strings["options"]
+
+    assert (
+        strings["config"]["abort"]["single_instance_allowed"]
+        == "Only one HVAC Balancing instance can be configured."
+    )

@@ -4,7 +4,11 @@
     "step": {
       "user": {
         "title": "HVAC Balancing",
-        "description": "Choose the safe virtual Test Bench or configure active production control."
+        "description": "Choose the safe virtual Test Bench or configure active production control.",
+        "menu_options": {
+          "test_bench": "Test Bench",
+          "production": "Production Active Control"
+        }
       },
       "test_bench": {
         "title": "Test Bench",
@@ -30,12 +34,6 @@
         }
       }
     },
-    "menu": {
-      "user": {
-        "test_bench": "Test Bench",
-        "production": "Production Active Control"
-      }
-    },
     "error": {
       "actuation_confirmation_required": "Physical actuation must be explicitly enabled before production runtime can be created.",
       "minimum_one_zone": "At least one balancing zone is required.",
@@ -52,7 +50,13 @@
     "step": {
       "init": {
         "title": "HVAC Balancing configuration",
-        "description": "Change system entities or manage balancing zones."
+        "description": "Change system entities or manage balancing zones.",
+        "menu_options": {
+          "system": "System entities",
+          "add_zone": "Add zone",
+          "edit_zone": "Edit zone",
+          "remove_zone": "Remove zone"
+        }
       },
       "system": {
         "title": "System entities",
@@ -94,14 +98,6 @@
           "zone_to_remove": "Zone",
           "confirm_remove": "Confirm zone removal"
         }
-      }
-    },
-    "menu": {
-      "init": {
-        "system": "System entities",
-        "add_zone": "Add zone",
-        "edit_zone": "Edit zone",
-        "remove_zone": "Remove zone"
       }
     },
     "error": {

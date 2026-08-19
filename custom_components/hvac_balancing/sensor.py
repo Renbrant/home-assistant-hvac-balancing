@@ -13,7 +13,11 @@ from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,
 )
 
-from .controller import ZoneDecision
+from .controller import (
+    COOLING_ACTION,
+    COOL_MODE,
+    ZoneDecision,
+)
 from .observation import (
     HVACBalancingObservationRuntime,
     ObservationSnapshot,
@@ -27,6 +31,8 @@ METRICS = (
     ("adaptive_i", "Adaptive I"),
     ("pi_target", "PI Target"),
     ("effective_percentage", "Effective Percentage"),
+    ("improvement_rate", "Improvement Rate"),
+    ("adaptive_action", "Adaptive Action"),
 )
 
 
@@ -123,6 +129,9 @@ class HVACBalancingObservationSensor(SensorEntity):
         if metric == "effective_percentage":
             self._attr_native_unit_of_measurement = PERCENTAGE
 
+        if metric == "improvement_rate":
+            self._attr_native_unit_of_measurement = "?F/10 min"
+
     @property
     def _snapshot(self) -> ObservationSnapshot | None:
         return self._observer.snapshot
@@ -149,7 +158,7 @@ class HVACBalancingObservationSensor(SensorEntity):
         )
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> int | float | str | None:
         """Return the requested controller metric."""
 
         decision = self._decision
@@ -168,6 +177,12 @@ class HVACBalancingObservationSensor(SensorEntity):
 
         if self._metric == "effective_percentage":
             return decision.effective_percentage
+
+        if self._metric == "improvement_rate":
+            return decision.improvement_rate_per_10m
+
+        if self._metric == "adaptive_action":
+            return decision.adaptive_action
 
         return None
 
@@ -198,6 +213,20 @@ class HVACBalancingObservationSensor(SensorEntity):
             "effective_speed": decision.effective_speed,
             "effective_percentage": decision.effective_percentage,
             "reference_error": decision.reference_error,
+            "cooling_exposure_seconds": (
+                decision.cooling_exposure_seconds
+            ),
+            "required_cooling_exposure_seconds": (
+                decision.required_cooling_exposure_seconds
+            ),
+            "cooling_exposure_progress_pct": round(
+                decision.cooling_exposure_progress * 100,
+                1,
+            ),
+            "improvement_rate_per_10m": (
+                decision.improvement_rate_per_10m
+            ),
+            "adaptive_action": decision.adaptive_action,
             "last_evaluation": (
                 decision.last_evaluation.isoformat()
                 if decision.last_evaluation is not None
@@ -403,12 +432,55 @@ class HVACBalancingTimelineSensor(SensorEntity):
         self.async_write_ha_state()
 
 
+def _projected_cooling_exposure(
+    *,
+    observer: HVACBalancingObservationRuntime,
+    snapshot: ObservationSnapshot,
+    decision: ZoneDecision,
+) -> float:
+    """Project live cooling exposure without executing controller logic."""
+
+    exposure = max(
+        float(decision.cooling_exposure_seconds),
+        0.0,
+    )
+
+    actively_collecting = (
+        snapshot.hvac_mode == COOL_MODE
+        and snapshot.hvac_action == COOLING_ACTION
+        and decision.valid_temperatures
+        and decision.required_cooling_exposure_seconds > 0
+        and decision.adaptive_action not in (
+            "inactive",
+            "invalid_input",
+            "invalid_reset",
+            "awaiting_reference",
+            "no_headroom",
+        )
+    )
+
+    if not actively_collecting:
+        return exposure
+
+    elapsed = (
+        observer.display_now
+        - snapshot.updated_at
+    ).total_seconds()
+
+    return exposure + max(
+        elapsed,
+        0.0,
+    )
+
+
 class HVACBalancingAdaptiveWindowSensor(SensorEntity):
-    """Display remaining time in one zone Adaptive I observation window."""
+    """Display effective cooling exposure for one Test Bench zone.
+
+    The historic unique ID is deliberately retained so the existing beta.3
+    entity registry continues using sensor.hvac_balancing_test_*_adaptive_window.
+    """
 
     _attr_should_poll = False
-
-    ADAPTIVE_INTERVAL_SECONDS = 1200
 
     def __init__(
         self,
@@ -416,7 +488,7 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
         observer: HVACBalancingObservationRuntime,
         zone: ObservationZoneConfig,
     ) -> None:
-        """Initialize Adaptive window sensor."""
+        """Initialize Cooling Exposure diagnostic."""
 
         self._observer = observer
         self._zone = zone
@@ -432,7 +504,7 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Return whether this zone exists in current snapshot."""
+        """Return whether this zone exists in the current snapshot."""
 
         snapshot = self._observer.snapshot
 
@@ -443,7 +515,7 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        """Return countdown, Due, or Not started."""
+        """Return effective cooling exposure versus dynamic requirement."""
 
         snapshot = self._observer.snapshot
 
@@ -457,33 +529,60 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
         if decision is None:
             return None
 
-        last_evaluation = decision.last_evaluation
+        action = decision.adaptive_action
 
-        if last_evaluation is None:
-            return "Not started"
+        if action == "inactive":
+            return "Inactive"
 
-        elapsed = (
-            self._observer.display_now
-            - last_evaluation
-        ).total_seconds()
+        if action in (
+            "invalid_input",
+            "invalid_reset",
+        ):
+            return "Invalid input"
 
-        remaining = (
-            self.ADAPTIVE_INTERVAL_SECONDS
-            - elapsed
+        if action == "awaiting_reference":
+            return "Awaiting reference"
+
+        if action == "no_headroom":
+            return "No headroom"
+
+        required = max(
+            float(
+                decision.required_cooling_exposure_seconds
+            ),
+            0.0,
         )
 
-        if remaining <= 0:
-            return "Due"
+        if required <= 0:
+            return "Not required"
 
-        return _format_duration(
-            int(remaining)
+        exposure = _projected_cooling_exposure(
+            observer=self._observer,
+            snapshot=snapshot,
+            decision=decision,
         )
+
+        shown_exposure = min(
+            exposure,
+            required,
+        )
+
+        state = (
+            f"{_format_duration(int(shown_exposure))}"
+            f" / "
+            f"{_format_duration(int(required))}"
+        )
+
+        if exposure >= required:
+            return f"{state} READY"
+
+        return state
 
     @property
     def extra_state_attributes(
         self,
     ) -> dict[str, Any] | None:
-        """Expose detailed observation-window timing."""
+        """Expose detailed effective-cooling diagnostics."""
 
         snapshot = self._observer.snapshot
 
@@ -497,39 +596,74 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
         if decision is None:
             return None
 
-        last_evaluation = decision.last_evaluation
+        required = max(
+            float(
+                decision.required_cooling_exposure_seconds
+            ),
+            0.0,
+        )
 
-        seconds_remaining = None
+        exposure = _projected_cooling_exposure(
+            observer=self._observer,
+            snapshot=snapshot,
+            decision=decision,
+        )
 
-        if last_evaluation is not None:
-            elapsed = (
-                self._observer.display_now
-                - last_evaluation
-            ).total_seconds()
+        remaining = max(
+            required - exposure,
+            0.0,
+        )
 
-            seconds_remaining = max(
-                int(
-                    self.ADAPTIVE_INTERVAL_SECONDS
-                    - elapsed
-                ),
-                0,
+        progress = 0.0
+
+        if required > 0:
+            progress = min(
+                exposure / required,
+                1.0,
             )
 
         return {
             "observation_only": True,
+            "adaptive_strategy": "cooling_exposure",
             "zone": self._zone.key,
+            "hvac_mode": snapshot.hvac_mode,
+            "hvac_action": snapshot.hvac_action,
+            "directional_error": decision.directional_error,
             "adaptive_i": decision.adaptive_boost,
+            "adaptive_action": decision.adaptive_action,
             "reference_error": decision.reference_error,
+            "improvement_rate_per_10m": (
+                decision.improvement_rate_per_10m
+            ),
+            "stored_cooling_exposure_seconds": (
+                decision.cooling_exposure_seconds
+            ),
+            "projected_cooling_exposure_seconds": round(
+                exposure,
+                1,
+            ),
+            "required_cooling_exposure_seconds": required,
+            "remaining_cooling_exposure_seconds": round(
+                remaining,
+                1,
+            ),
+            "cooling_exposure_progress_pct": round(
+                progress * 100,
+                1,
+            ),
+            "ready_for_next_adaptive_tick": (
+                required > 0
+                and exposure >= required
+            ),
             "last_evaluation": (
-                last_evaluation.isoformat()
-                if last_evaluation is not None
+                decision.last_evaluation.isoformat()
+                if decision.last_evaluation is not None
                 else None
             ),
-            "seconds_remaining": seconds_remaining,
         }
 
     async def async_added_to_hass(self) -> None:
-        """Subscribe only to timeline notifications."""
+        """Subscribe only to display timeline updates."""
 
         await super().async_added_to_hass()
 
@@ -541,6 +675,6 @@ class HVACBalancingAdaptiveWindowSensor(SensorEntity):
 
     @callback
     def _handle_timeline_update(self) -> None:
-        """Write latest Adaptive countdown."""
+        """Refresh live cooling-exposure display only."""
 
         self.async_write_ha_state()

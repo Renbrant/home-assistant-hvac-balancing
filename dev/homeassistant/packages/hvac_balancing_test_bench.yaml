@@ -1053,7 +1053,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "Bed2 Base=8 I=0 PI=8. Adaptive Window starts near 20:00. HVAC Cooling."
+          value: "Bed2 Base=8 I=0 PI=8. Cooling exposure starts at 00:00 / 10:00 while HVAC is Cooling."
 
       - action: climate.set_hvac_mode
         target:
@@ -1076,7 +1076,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "HVAC becomes Idle. Bed2 Adaptive Window countdown MUST continue, not reset."
+          value: "HVAC becomes Idle. Bed2 cooling exposure MUST PAUSE and keep the same accumulated time."
 
       - action: input_number.set_value
         target:
@@ -1099,7 +1099,7 @@ script:
         target:
           entity_id: input_text.hvac_test_expected_validation_result
         data:
-          value: "HVAC returns Cooling. Same Bed2 Adaptive countdown must continue. At due tick I should become 1."
+          value: "HVAC returns Cooling. Bed2 exposure resumes. At 10:00 total cooling, next tick should raise I to 1."
 
       - action: input_number.set_value
         target:

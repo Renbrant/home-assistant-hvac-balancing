@@ -203,7 +203,7 @@ views:
           - script.hvac_test_reset_virtual_boosters
 
       - type: entities
-        title: Controller Timing
+        title: Controller Timing & Cooling Exposure
         show_header_toggle: false
         entities:
 
@@ -226,13 +226,13 @@ views:
             name: Next Tick In
 
           - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
-            name: Bed 1 - 20-Min Window
+            name: Bed 1 - Cooling Exposure
 
           - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
-            name: Bed 2 - 20-Min Window
+            name: Bed 2 - Cooling Exposure
 
           - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
-            name: Bed 3 - 20-Min Window
+            name: Bed 3 - Cooling Exposure
 
       - type: markdown
         title: Python Controller - Observation Only
@@ -241,6 +241,9 @@ views:
           Test Bench in observation-only mode.
 
           It calculates controller demand but sends **no actuator commands**.
+
+          **beta.4:** Adaptive I now evaluates actual effective cooling exposure
+          rather than consuming idle wall-clock time.
 
           Change the virtual temperatures and compare the calculated outputs
           below.
@@ -267,6 +270,15 @@ views:
               - entity: sensor.hvac_balancing_test_bed_1_effective_percentage
                 name: Effective Percentage
 
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_1_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_action
+                name: Adaptive Action
+
           - type: entities
             title: Python - Bed 2
             show_header_toggle: false
@@ -284,6 +296,15 @@ views:
               - entity: sensor.hvac_balancing_test_bed_2_effective_percentage
                 name: Effective Percentage
 
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_2_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_action
+                name: Adaptive Action
+
           - type: entities
             title: Python - Bed 3
             show_header_toggle: false
@@ -300,6 +321,15 @@ views:
 
               - entity: sensor.hvac_balancing_test_bed_3_effective_percentage
                 name: Effective Percentage
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_3_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_action
+                name: Adaptive Action
 
       - type: entities
         title: Python Controller - Global Decision

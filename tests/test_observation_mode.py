@@ -138,6 +138,8 @@ def test_observation_metrics_are_exposed() -> None:
         '("adaptive_i", "Adaptive I")',
         '("pi_target", "PI Target")',
         '("effective_percentage", "Effective Percentage")',
+        '("improvement_rate", "Improvement Rate")',
+        '("adaptive_action", "Adaptive Action")',
     )
 
     for marker in expected:
@@ -199,7 +201,9 @@ def test_observation_timing_diagnostics_exist() -> None:
         '"last_adaptive_tick"',
         '"next_adaptive_tick"',
         '"next_tick_in"',
-        "ADAPTIVE_INTERVAL_SECONDS = 1200",
+        "_projected_cooling_exposure",
+        "required_cooling_exposure_seconds",
+        "READY",
     )
 
     for marker in expected_sensor_markers:
@@ -240,3 +244,55 @@ def test_timeline_heartbeat_cannot_recalculate_controller() -> None:
     assert "_recalculate(" not in heartbeat
     assert "calculate_zone(" not in heartbeat
     assert "ControllerEvent." not in heartbeat
+
+def test_observation_adapter_uses_cooling_exposure_strategy() -> None:
+    """Verify Test Bench explicitly opts into beta.4 strategy."""
+
+    observation = read("observation.py")
+
+    assert "COOLING_EXPOSURE_SETTINGS" in observation
+    assert "settings=COOLING_EXPOSURE_SETTINGS" in observation
+
+
+def test_dashboard_exposes_cooling_exposure_diagnostics() -> None:
+    """Verify exposure, trend, and Adaptive action are visible."""
+
+    dashboard = DASHBOARD.read_text(encoding="utf-8")
+
+    assert "Controller Timing & Cooling Exposure" in dashboard
+
+    for bed in (1, 2, 3):
+        expected = (
+            f"sensor.hvac_balancing_test_bed_{bed}_adaptive_window",
+            f"sensor.hvac_balancing_test_bed_{bed}_improvement_rate",
+            f"sensor.hvac_balancing_test_bed_{bed}_adaptive_action",
+        )
+
+        for entity_id in expected:
+            assert entity_id in dashboard
+
+        assert (
+            f"Bed {bed} - Cooling Exposure"
+            in dashboard
+        )
+
+
+def test_cooling_exposure_display_is_heartbeat_only() -> None:
+    """Verify display projection cannot mutate controller state."""
+
+    sensor = read("sensor.py")
+
+    start = sensor.index(
+        "def _projected_cooling_exposure"
+    )
+
+    end = sensor.index(
+        "class HVACBalancingAdaptiveWindowSensor",
+        start,
+    )
+
+    projector = sensor[start:end]
+
+    assert "calculate_zone(" not in projector
+    assert "_recalculate(" not in projector
+    assert "ZoneState(" not in projector

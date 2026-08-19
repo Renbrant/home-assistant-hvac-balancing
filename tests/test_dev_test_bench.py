@@ -335,3 +335,28 @@ def test_guided_fault_scenarios_exist() -> None:
     for script in expected:
         assert f"{script}:" in package
         assert f"script.{script}" in dashboard
+
+def test_guided_adaptive_scenarios_describe_cooling_exposure() -> None:
+    """Verify guided Adaptive scenarios match beta.4 thermal clock."""
+
+    package = PACKAGE.read_text(encoding="utf-8")
+
+    expected = (
+        "Cooling exposure starts at 00:00 / 10:00",
+        "cooling exposure MUST PAUSE",
+        "exposure resumes",
+        "10:00 total cooling",
+    )
+
+    for marker in expected:
+        assert marker in package
+
+    assert (
+        "Adaptive Window starts near 20:00"
+        not in package
+    )
+
+    assert (
+        "Adaptive Window countdown MUST continue"
+        not in package
+    )

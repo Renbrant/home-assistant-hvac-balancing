@@ -28,6 +28,7 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .controller import (
+    COOLING_EXPOSURE_SETTINGS,
     ControllerEvent,
     ZoneDecision,
     ZoneInput,
@@ -354,6 +355,7 @@ class HVACBalancingObservationRuntime:
                 ),
                 self._zone_states[zone.key],
                 now,
+                settings=COOLING_EXPOSURE_SETTINGS,
             )
 
             decisions[zone.key] = decision

@@ -2,7 +2,7 @@
 
 DOMAIN = "hvac_balancing"
 NAME = "HVAC Balancing"
-VERSION = "0.2.0-beta.7"
+VERSION = "0.2.0-beta.8"
 
 RUNTIME_MODE_TEST_BENCH = "test_bench"
 RUNTIME_MODE_PRODUCTION = "production_active"
@@ -13,16 +13,16 @@ CONF_ACTUATION_ENABLED = "actuation_enabled"
 CONF_THERMOSTAT = "thermostat"
 CONF_REFERENCE_SENSOR = "reference_sensor"
 
-CONF_ZONE_1_NAME = "zone_1_name"
-CONF_ZONE_1_TEMPERATURE = "zone_1_temperature"
-CONF_ZONE_1_FAN = "zone_1_fan"
+CONF_ZONES = "zones"
+CONF_ZONE_ID = "id"
+CONF_ZONE_NAME = "name"
+CONF_ZONE_TEMPERATURE = "temperature_sensor"
+CONF_ZONE_FAN = "booster_fan"
 
-CONF_ZONE_2_NAME = "zone_2_name"
-CONF_ZONE_2_TEMPERATURE = "zone_2_temperature"
-CONF_ZONE_2_FAN = "zone_2_fan"
-
-CONF_ZONE_3_NAME = "zone_3_name"
-CONF_ZONE_3_TEMPERATURE = "zone_3_temperature"
-CONF_ZONE_3_FAN = "zone_3_fan"
+# Config-flow-only fields.
+CONF_ADD_ANOTHER_ZONE = "add_another_zone"
+CONF_ZONE_TO_EDIT = "zone_to_edit"
+CONF_ZONE_TO_REMOVE = "zone_to_remove"
+CONF_CONFIRM_REMOVE = "confirm_remove"
 
 DEFAULT_OBSERVATION_ONLY = True

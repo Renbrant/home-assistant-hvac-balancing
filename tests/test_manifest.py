@@ -24,6 +24,7 @@ def test_required_integration_files_exist() -> None:
     required_files = (
         "__init__.py",
         "config_flow.py",
+        "configuration.py",
         "const.py",
         "manifest.json",
         "runtime.py",
@@ -45,7 +46,7 @@ def test_manifest_identity() -> None:
 
     assert manifest["domain"] == "hvac_balancing"
     assert manifest["name"] == "HVAC Balancing"
-    assert manifest["version"] == "0.2.0-beta.7"
+    assert manifest["version"] == "0.2.0-beta.8"
 
 
 def test_manifest_architecture() -> None:

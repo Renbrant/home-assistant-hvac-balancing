@@ -1,4 +1,4 @@
-"""Structural safety tests for beta.7 active production runtime."""
+"""Structural safety tests for beta.8 configurable active runtime."""
 
 from pathlib import Path
 
@@ -279,13 +279,98 @@ def test_booster_reconciliation_uses_command_cache_and_watchdog() -> None:
 def test_production_flow_rejects_ambiguous_zone_mappings() -> None:
     """Prevent multiple logical zones from commanding the same hardware."""
 
-    flow = read("config_flow.py")
+    configuration = read("configuration.py")
     strings = read("strings.json")
 
-    assert "duplicate_zone_temperature" in flow
-    assert "duplicate_zone_fan" in flow
-    assert "reference_matches_zone" in flow
+    assert "duplicate_zone_temperature" in configuration
+    assert "duplicate_zone_fan" in configuration
+    assert "reference_matches_zone" in configuration
 
     assert "duplicate_zone_temperature" in strings
     assert "duplicate_zone_fan" in strings
     assert "reference_matches_zone" in strings
+
+def test_fixed_three_zone_schema_is_removed() -> None:
+    """Production configuration must no longer be Bed1/Bed2/Bed3 shaped."""
+
+    const = read("const.py")
+    flow = read("config_flow.py")
+    init = read("__init__.py")
+
+    combined = const + "\n" + flow + "\n" + init
+
+    forbidden = (
+        "CONF_ZONE_1_NAME",
+        "CONF_ZONE_1_TEMPERATURE",
+        "CONF_ZONE_1_FAN",
+        "CONF_ZONE_2_NAME",
+        "CONF_ZONE_2_TEMPERATURE",
+        "CONF_ZONE_2_FAN",
+        "CONF_ZONE_3_NAME",
+        "CONF_ZONE_3_TEMPERATURE",
+        "CONF_ZONE_3_FAN",
+    )
+
+    for marker in forbidden:
+        assert marker not in combined
+
+
+def test_production_setup_uses_dynamic_zone_collection() -> None:
+    """Initial setup must permit arbitrary zone count."""
+
+    flow = read("config_flow.py")
+
+    assert "CONF_ZONES" in flow
+    assert "async_step_production_zone" in flow
+    assert "CONF_ADD_ANOTHER_ZONE" in flow
+    assert "uuid4().hex[:12]" in flow
+
+    assert "self._zones = proposed" in flow
+
+
+def test_dynamic_zone_ids_are_stable_runtime_keys() -> None:
+    """Renaming a zone must not replace its runtime identity."""
+
+    configuration = read("configuration.py")
+    flow = read("config_flow.py")
+
+    assert "key=record[CONF_ZONE_ID]" in configuration
+    assert "zone_id=target[CONF_ZONE_ID]" in flow
+
+
+def test_options_flow_supports_runtime_reconfiguration() -> None:
+    """Users must be able to maintain the system after installation."""
+
+    flow = read("config_flow.py")
+
+    assert "class HVACBalancingOptionsFlow" in flow
+
+    for step in (
+        "async_step_system",
+        "async_step_add_zone",
+        "async_step_edit_zone",
+        "async_step_edit_zone_detail",
+        "async_step_remove_zone",
+    ):
+        assert step in flow
+
+
+def test_options_changes_reload_runtime() -> None:
+    """Changed entity mappings must be applied without reinstalling."""
+
+    init = read("__init__.py")
+
+    assert "entry.add_update_listener" in init
+    assert "_async_update_listener" in init
+    assert "async_reload" in init
+
+
+def test_actuator_receives_dynamic_zone_tuple() -> None:
+    """Physical actuator must use exactly the zones built from user config."""
+
+    init = read("__init__.py")
+
+    assert "build_observation_zones" in init
+    assert "zones=zones" in init
+
+    assert "_production_zones" not in init

@@ -251,10 +251,11 @@ views:
 
           It calculates controller demand but sends **no actuator commands**.
 
-          **beta.7:** the validated Test Bench remains observation-only.
-          The integration now also contains a separately configured, explicitly
-          gated production runtime capable of physical booster and Nest assist
-          actuation. Test Bench entities never actuate equipment.
+          **beta.8:** production configuration is now installation-agnostic.
+          The user selects the thermostat, reference temperature sensor, and an
+          arbitrary number of balancing zones. Each zone owns a stable ID,
+          temperature sensor, and booster fan. Production configuration can be
+          edited later through Home Assistant integration options.
 
           Change the virtual temperatures and compare the calculated outputs
           below.

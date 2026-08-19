@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "HVAC Balancing",
-        "description": "Choose a safe Test Bench runtime or explicitly configure active production control."
+        "description": "Choose the safe virtual Test Bench or configure active production control."
       },
       "test_bench": {
         "title": "Test Bench",
@@ -12,31 +12,110 @@
       },
       "production": {
         "title": "Production Active Control",
-        "description": "Configure the real thermostat, reference sensor, three balancing zones, and explicitly enable physical actuation.",
+        "description": "Choose the central thermostat and reference temperature sensor. Zones are added on the next screen.",
         "data": {
-          "thermostat": "Thermostat",
+          "thermostat": "Central thermostat",
           "reference_sensor": "Reference temperature sensor",
-          "zone_1_name": "Zone 1 name",
-          "zone_1_temperature": "Zone 1 temperature sensor",
-          "zone_1_fan": "Zone 1 booster fan",
-          "zone_2_name": "Zone 2 name",
-          "zone_2_temperature": "Zone 2 temperature sensor",
-          "zone_2_fan": "Zone 2 booster fan",
-          "zone_3_name": "Zone 3 name",
-          "zone_3_temperature": "Zone 3 temperature sensor",
-          "zone_3_fan": "Zone 3 booster fan",
           "actuation_enabled": "I understand this runtime will physically control the configured HVAC equipment"
         }
+      },
+      "production_zone": {
+        "title": "Add balancing zone",
+        "description": "Add a room or area to balance. You may add as many zones as your installation requires.",
+        "data": {
+          "name": "Zone name",
+          "temperature_sensor": "Zone temperature sensor",
+          "booster_fan": "Zone booster fan",
+          "add_another_zone": "Add another zone after this one"
+        }
+      }
+    },
+    "menu": {
+      "user": {
+        "test_bench": "Test Bench",
+        "production": "Production Active Control"
       }
     },
     "error": {
       "actuation_confirmation_required": "Physical actuation must be explicitly enabled before production runtime can be created.",
+      "minimum_one_zone": "At least one balancing zone is required.",
+      "duplicate_zone_id": "Internal zone identifiers must be unique.",
       "duplicate_zone_temperature": "Each balancing zone must use a different temperature sensor.",
       "duplicate_zone_fan": "Each balancing zone must use a different booster fan.",
       "reference_matches_zone": "The reference temperature sensor must be different from every zone temperature sensor."
     },
     "abort": {
       "single_instance_allowed": "Only one HVAC Balancing instance can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HVAC Balancing configuration",
+        "description": "Change system entities or manage balancing zones."
+      },
+      "system": {
+        "title": "System entities",
+        "description": "Change the thermostat or reference temperature sensor.",
+        "data": {
+          "thermostat": "Central thermostat",
+          "reference_sensor": "Reference temperature sensor"
+        }
+      },
+      "add_zone": {
+        "title": "Add zone",
+        "description": "Add another room or area to the active balancing system.",
+        "data": {
+          "name": "Zone name",
+          "temperature_sensor": "Zone temperature sensor",
+          "booster_fan": "Zone booster fan"
+        }
+      },
+      "edit_zone": {
+        "title": "Edit zone",
+        "description": "Choose a zone to edit.",
+        "data": {
+          "zone_to_edit": "Zone"
+        }
+      },
+      "edit_zone_detail": {
+        "title": "Edit zone",
+        "description": "Change the zone name, temperature sensor, or booster fan.",
+        "data": {
+          "name": "Zone name",
+          "temperature_sensor": "Zone temperature sensor",
+          "booster_fan": "Zone booster fan"
+        }
+      },
+      "remove_zone": {
+        "title": "Remove zone",
+        "description": "Remove a balancing zone. At least one zone must remain.",
+        "data": {
+          "zone_to_remove": "Zone",
+          "confirm_remove": "Confirm zone removal"
+        }
+      }
+    },
+    "menu": {
+      "init": {
+        "system": "System entities",
+        "add_zone": "Add zone",
+        "edit_zone": "Edit zone",
+        "remove_zone": "Remove zone"
+      }
+    },
+    "error": {
+      "minimum_one_zone": "At least one balancing zone is required.",
+      "duplicate_zone_id": "Internal zone identifiers must be unique.",
+      "duplicate_zone_temperature": "Each balancing zone must use a different temperature sensor.",
+      "duplicate_zone_fan": "Each balancing zone must use a different booster fan.",
+      "reference_matches_zone": "The reference temperature sensor must be different from every zone temperature sensor.",
+      "remove_confirmation_required": "Confirm removal before deleting the zone."
+    },
+    "abort": {
+      "test_bench_has_no_options": "The virtual Test Bench has no production entity configuration.",
+      "minimum_one_zone": "At least one balancing zone must remain.",
+      "unknown_zone": "The selected zone no longer exists."
     }
   }
 }

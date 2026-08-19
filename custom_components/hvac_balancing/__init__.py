@@ -10,29 +10,22 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .actuator import HVACBalancingActuator
+from .configuration import (
+    build_observation_zones,
+    merged_entry_config,
+    production_core_config,
+    validate_zone_records,
+)
 from .const import (
     CONF_ACTUATION_ENABLED,
-    CONF_REFERENCE_SENSOR,
     CONF_RUNTIME_MODE,
-    CONF_THERMOSTAT,
-    CONF_ZONE_1_FAN,
-    CONF_ZONE_1_NAME,
-    CONF_ZONE_1_TEMPERATURE,
-    CONF_ZONE_2_FAN,
-    CONF_ZONE_2_NAME,
-    CONF_ZONE_2_TEMPERATURE,
-    CONF_ZONE_3_FAN,
-    CONF_ZONE_3_NAME,
-    CONF_ZONE_3_TEMPERATURE,
+    CONF_ZONES,
     NAME,
     RUNTIME_MODE_PRODUCTION,
     RUNTIME_MODE_TEST_BENCH,
     VERSION,
 )
-from .observation import (
-    HVACBalancingObservationRuntime,
-    ObservationZoneConfig,
-)
+from .observation import HVACBalancingObservationRuntime
 from .runtime import HVACBalancingRuntimeData
 
 
@@ -55,42 +48,14 @@ async def async_setup(
     return True
 
 
-def _production_zones(
+async def _async_update_listener(
+    hass: HomeAssistant,
     entry: HVACBalancingConfigEntry,
-) -> tuple[ObservationZoneConfig, ...]:
-    """Build configured production zones."""
+) -> None:
+    """Reload runtime after the user changes integration options."""
 
-    return (
-        ObservationZoneConfig(
-            key="zone_1",
-            name=entry.data[CONF_ZONE_1_NAME],
-            temperature_entity_id=entry.data[
-                CONF_ZONE_1_TEMPERATURE
-            ],
-            fan_entity_id=entry.data[
-                CONF_ZONE_1_FAN
-            ],
-        ),
-        ObservationZoneConfig(
-            key="zone_2",
-            name=entry.data[CONF_ZONE_2_NAME],
-            temperature_entity_id=entry.data[
-                CONF_ZONE_2_TEMPERATURE
-            ],
-            fan_entity_id=entry.data[
-                CONF_ZONE_2_FAN
-            ],
-        ),
-        ObservationZoneConfig(
-            key="zone_3",
-            name=entry.data[CONF_ZONE_3_NAME],
-            temperature_entity_id=entry.data[
-                CONF_ZONE_3_TEMPERATURE
-            ],
-            fan_entity_id=entry.data[
-                CONF_ZONE_3_FAN
-            ],
-        ),
+    await hass.config_entries.async_reload(
+        entry.entry_id
     )
 
 
@@ -98,12 +63,23 @@ async def async_setup_entry(
     hass: HomeAssistant,
     entry: HVACBalancingConfigEntry,
 ) -> bool:
-    """Set up either Test Bench or gated production runtime."""
+    """Set up Test Bench or dynamically configured production runtime."""
 
     runtime_mode = entry.data.get(
         CONF_RUNTIME_MODE,
         RUNTIME_MODE_TEST_BENCH,
     )
+
+    if runtime_mode not in (
+        RUNTIME_MODE_TEST_BENCH,
+        RUNTIME_MODE_PRODUCTION,
+    ):
+        _LOGGER.error(
+            "Unsupported HVAC Balancing runtime mode: %s",
+            runtime_mode,
+        )
+
+        return False
 
     observer: HVACBalancingObservationRuntime
     actuator: HVACBalancingActuator | None = None
@@ -125,18 +101,51 @@ async def async_setup_entry(
 
             return False
 
-        zones = _production_zones(
+        config = merged_entry_config(
             entry
         )
 
+        try:
+            thermostat_entity_id, reference_entity_id = (
+                production_core_config(
+                    config
+                )
+            )
+
+            raw_zones = config.get(
+                CONF_ZONES,
+                [],
+            )
+
+            zones = build_observation_zones(
+                raw_zones
+            )
+
+        except ValueError as err:
+            _LOGGER.error(
+                "Invalid HVAC Balancing production configuration: %s",
+                err,
+            )
+
+            return False
+
+        zone_error = validate_zone_records(
+            raw_zones,
+            reference_entity_id,
+        )
+
+        if zone_error is not None:
+            _LOGGER.error(
+                "Invalid HVAC Balancing zone configuration: %s",
+                zone_error,
+            )
+
+            return False
+
         observer = HVACBalancingObservationRuntime(
             hass,
-            thermostat_entity_id=entry.data[
-                CONF_THERMOSTAT
-            ],
-            reference_entity_id=entry.data[
-                CONF_REFERENCE_SENSOR
-            ],
+            thermostat_entity_id=thermostat_entity_id,
+            reference_entity_id=reference_entity_id,
             zones=zones,
             entity_name_prefix="HVAC Balancing",
             unique_id_prefix="production",
@@ -147,9 +156,7 @@ async def async_setup_entry(
         actuator = HVACBalancingActuator(
             hass,
             observer=observer,
-            thermostat_entity_id=entry.data[
-                CONF_THERMOSTAT
-            ],
+            thermostat_entity_id=thermostat_entity_id,
             zones=zones,
         )
 
@@ -169,6 +176,12 @@ async def async_setup_entry(
     )
 
     entry.async_on_unload(
+        entry.add_update_listener(
+            _async_update_listener
+        )
+    )
+
+    entry.async_on_unload(
         observer.async_stop
     )
 
@@ -177,7 +190,7 @@ async def async_setup_entry(
             actuator.async_stop
         )
 
-        # Subscribe actuator before the observer STARTUP snapshot.
+        # Subscribe before STARTUP so first calculated outputs are applied.
         actuator.async_start()
 
     observer.async_start()
@@ -188,10 +201,11 @@ async def async_setup_entry(
     )
 
     _LOGGER.info(
-        "%s %s loaded runtime=%s observation_only=%s",
+        "%s %s loaded runtime=%s zones=%s observation_only=%s",
         NAME,
         VERSION,
         runtime_mode,
+        len(observer.zones),
         observation_only,
     )
 

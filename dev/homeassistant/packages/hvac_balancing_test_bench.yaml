@@ -594,13 +594,28 @@ script:
     mode: restart
     sequence:
 
+      # Normal scenario preparation resets only zone boosters.
+      # Central Assist is intentionally left untouched so its ownership,
+      # reconciliation, and delayed shutdown behavior can be tested.
       - action: fan.turn_off
         target:
           entity_id:
             - fan.hvac_test_bed_1_booster
             - fan.hvac_test_bed_2_booster
             - fan.hvac_test_bed_3_booster
-            - fan.hvac_test_central_blower
+
+  hvac_test_force_reset_all_actuators:
+    alias: HVAC Test - Force Reset All Actuators
+    mode: restart
+    sequence:
+
+      # Explicit fault/drift helper. Unlike normal scenario preparation,
+      # this intentionally interferes with every virtual actuator.
+      - action: script.hvac_test_reset_virtual_boosters
+
+      - action: fan.turn_off
+        target:
+          entity_id: fan.hvac_test_central_blower
 
   hvac_test_scenario_balanced:
     alias: HVAC Test Scenario - Balanced House

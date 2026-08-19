@@ -104,7 +104,7 @@ class HVACBalancingConfigFlow(
 ):
     """Handle the HVAC Balancing config flow."""
 
-    VERSION = 2
+    VERSION = 1
 
     async def async_step_user(
         self,
@@ -159,6 +159,45 @@ class HVACBalancingConfigFlow(
             ):
                 errors["base"] = (
                     "actuation_confirmation_required"
+                )
+
+            temperature_entity_ids = (
+                user_input[CONF_ZONE_1_TEMPERATURE],
+                user_input[CONF_ZONE_2_TEMPERATURE],
+                user_input[CONF_ZONE_3_TEMPERATURE],
+            )
+
+            fan_entity_ids = (
+                user_input[CONF_ZONE_1_FAN],
+                user_input[CONF_ZONE_2_FAN],
+                user_input[CONF_ZONE_3_FAN],
+            )
+
+            if (
+                not errors
+                and len(set(temperature_entity_ids))
+                != len(temperature_entity_ids)
+            ):
+                errors["base"] = (
+                    "duplicate_zone_temperature"
+                )
+
+            if (
+                not errors
+                and len(set(fan_entity_ids))
+                != len(fan_entity_ids)
+            ):
+                errors["base"] = (
+                    "duplicate_zone_fan"
+                )
+
+            if (
+                not errors
+                and user_input[CONF_REFERENCE_SENSOR]
+                in temperature_entity_ids
+            ):
+                errors["base"] = (
+                    "reference_matches_zone"
                 )
 
             if not errors:

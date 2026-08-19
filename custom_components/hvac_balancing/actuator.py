@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 import logging
+import time
 
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
 from homeassistant.components.climate.const import (
@@ -45,6 +46,7 @@ NEST_SERVICE_SET_FAN_TIMER = "set_fan_timer"
 
 CENTRAL_ASSIST_TIMER_HOURS = 12
 CENTRAL_ASSIST_OFF_DELAY_SECONDS = 5 * 60
+CENTRAL_ASSIST_REFRESH_SECONDS = 60 * 60
 
 
 class HVACBalancingActuator:
@@ -75,9 +77,18 @@ class HVACBalancingActuator:
 
         self._unsubscribe: Callable[[], None] | None = None
         self._apply_task: asyncio.Task[None] | None = None
-        self._assist_off_task: asyncio.Task[None] | None = None
+        self._apply_pending = False
 
+        self._assist_off_task: asyncio.Task[None] | None = None
         self._assist_requested = False
+        self._assist_last_refresh_monotonic: float | None = None
+
+        # Cache commands we successfully sent instead of trusting potentially
+        # stale Xtend/Tuya feedback as the sole source of truth.
+        self._last_commanded_speeds: dict[str, int | None] = {
+            zone.key: None
+            for zone in self._zones
+        }
 
     @callback
     def async_start(self) -> None:
@@ -98,6 +109,8 @@ class HVACBalancingActuator:
             self._unsubscribe()
             self._unsubscribe = None
 
+        self._apply_pending = False
+
         if (
             self._apply_task is not None
             and not self._apply_task.done()
@@ -112,17 +125,29 @@ class HVACBalancingActuator:
 
     @callback
     def _handle_controller_update(self) -> None:
-        """Apply only the newest controller snapshot."""
+        """Queue the newest snapshot without cancelling physical commands."""
 
         if (
             self._apply_task is not None
             and not self._apply_task.done()
         ):
-            self._apply_task.cancel()
+            self._apply_pending = True
+            return
 
         self._apply_task = self.hass.async_create_task(
-            self._async_apply_snapshot()
+            self._async_apply_loop()
         )
+
+    async def _async_apply_loop(self) -> None:
+        """Apply snapshots serially and coalesce intermediate updates."""
+
+        while True:
+            self._apply_pending = False
+
+            await self._async_apply_snapshot()
+
+            if not self._apply_pending:
+                return
 
     async def _async_apply_snapshot(self) -> None:
         """Apply current effective speeds and central-assist request."""
@@ -131,6 +156,12 @@ class HVACBalancingActuator:
 
         if snapshot is None:
             return
+
+        force_reconcile = (
+            snapshot.event.value == "startup"
+            or self._observer.last_watchdog
+            == snapshot.updated_at
+        )
 
         for zone in self._zones:
             decision = snapshot.decisions.get(
@@ -150,6 +181,7 @@ class HVACBalancingActuator:
             await self._async_apply_zone_speed(
                 zone,
                 desired_speed,
+                force=force_reconcile,
             )
 
         await self._async_apply_central_assist(
@@ -160,6 +192,8 @@ class HVACBalancingActuator:
         self,
         zone: ObservationZoneConfig,
         desired_speed: int,
+        *,
+        force: bool,
     ) -> None:
         """Apply one 0-10 controller speed to one booster."""
 
@@ -177,18 +211,35 @@ class HVACBalancingActuator:
             fan_entity_id
         )
 
+        last_commanded = self._last_commanded_speeds.get(
+            zone.key
+        )
+
         if desired_speed == 0:
+            state_matches = (
+                state is not None
+                and state.state == STATE_OFF
+            )
+
             if (
-                state is None
-                or state.state != STATE_OFF
+                not force
+                and last_commanded == 0
+                and state_matches
             ):
-                await self._async_service_call(
-                    FAN_DOMAIN,
-                    SERVICE_TURN_OFF,
-                    {
-                        ATTR_ENTITY_ID: fan_entity_id,
-                    },
-                )
+                return
+
+            success = await self._async_service_call(
+                FAN_DOMAIN,
+                SERVICE_TURN_OFF,
+                {
+                    ATTR_ENTITY_ID: fan_entity_id,
+                },
+            )
+
+            if success:
+                self._last_commanded_speeds[
+                    zone.key
+                ] = 0
 
             return
 
@@ -210,52 +261,84 @@ class HVACBalancingActuator:
             else None
         )
 
-        if current_preset != BOOSTER_PRESET:
-            await self._async_service_call(
-                FAN_DOMAIN,
-                SERVICE_SET_PRESET_MODE,
-                {
-                    ATTR_ENTITY_ID: fan_entity_id,
-                    ATTR_PRESET_MODE: BOOSTER_PRESET,
-                },
-            )
-
-            await asyncio.sleep(1)
-
-        if current_percentage != desired_percentage:
-            await self._async_service_call(
-                FAN_DOMAIN,
-                SERVICE_SET_PERCENTAGE,
-                {
-                    ATTR_ENTITY_ID: fan_entity_id,
-                    ATTR_PERCENTAGE: desired_percentage,
-                },
-            )
-
-            await asyncio.sleep(1)
+        state_matches = (
+            state is not None
+            and state.state == STATE_ON
+            and current_preset == BOOSTER_PRESET
+            and current_percentage == desired_percentage
+        )
 
         if (
-            state is None
-            or state.state != STATE_ON
+            not force
+            and last_commanded == desired_speed
+            and state_matches
         ):
-            await self._async_service_call(
-                FAN_DOMAIN,
-                SERVICE_TURN_ON,
-                {
-                    ATTR_ENTITY_ID: fan_entity_id,
-                },
-            )
+            return
+
+        # Preserve the proven native Xtend/Tuya command sequence.
+        success = await self._async_service_call(
+            FAN_DOMAIN,
+            SERVICE_SET_PRESET_MODE,
+            {
+                ATTR_ENTITY_ID: fan_entity_id,
+                ATTR_PRESET_MODE: BOOSTER_PRESET,
+            },
+        )
+
+        if not success:
+            return
+
+        await asyncio.sleep(1)
+
+        success = await self._async_service_call(
+            FAN_DOMAIN,
+            SERVICE_SET_PERCENTAGE,
+            {
+                ATTR_ENTITY_ID: fan_entity_id,
+                ATTR_PERCENTAGE: desired_percentage,
+            },
+        )
+
+        if not success:
+            return
+
+        await asyncio.sleep(1)
+
+        success = await self._async_service_call(
+            FAN_DOMAIN,
+            SERVICE_TURN_ON,
+            {
+                ATTR_ENTITY_ID: fan_entity_id,
+            },
+        )
+
+        if success:
+            self._last_commanded_speeds[
+                zone.key
+            ] = desired_speed
 
     async def _async_apply_central_assist(
         self,
         required: bool,
     ) -> None:
-        """Apply the second-stage central circulation request."""
+        """Apply only central circulation owned by this actuator."""
 
         if required:
             self._cancel_assist_off()
 
-            if not self._assist_requested:
+            now_monotonic = time.monotonic()
+
+            refresh_due = (
+                not self._assist_requested
+                or self._assist_last_refresh_monotonic is None
+                or (
+                    now_monotonic
+                    - self._assist_last_refresh_monotonic
+                )
+                >= CENTRAL_ASSIST_REFRESH_SECONDS
+            )
+
+            if refresh_due:
                 success = await self._async_service_call(
                     NEST_DOMAIN,
                     NEST_SERVICE_SET_FAN_TIMER,
@@ -269,7 +352,15 @@ class HVACBalancingActuator:
 
                 if success:
                     self._assist_requested = True
+                    self._assist_last_refresh_monotonic = (
+                        now_monotonic
+                    )
 
+            return
+
+        # Never turn off fan circulation that HVAC Balancing did not start.
+        if not self._assist_requested:
+            self._cancel_assist_off()
             return
 
         if (
@@ -293,14 +384,16 @@ class HVACBalancingActuator:
         self._assist_off_task = None
 
     async def _async_delayed_assist_off(self) -> None:
-        """Turn Nest circulation off after the legacy five-minute grace."""
+        """Turn owned Nest circulation off after the five-minute grace."""
+
+        current_task = asyncio.current_task()
 
         try:
             await asyncio.sleep(
                 CENTRAL_ASSIST_OFF_DELAY_SECONDS
             )
 
-            await self._async_service_call(
+            success = await self._async_service_call(
                 CLIMATE_DOMAIN,
                 SERVICE_SET_FAN_MODE,
                 {
@@ -309,10 +402,16 @@ class HVACBalancingActuator:
                 },
             )
 
-            self._assist_requested = False
+            if success:
+                self._assist_requested = False
+                self._assist_last_refresh_monotonic = None
 
         except asyncio.CancelledError:
             raise
+
+        finally:
+            if self._assist_off_task is current_task:
+                self._assist_off_task = None
 
     async def _async_service_call(
         self,
@@ -373,11 +472,16 @@ class HVACBalancingActuator:
                 },
             )
 
-        await self._async_service_call(
-            CLIMATE_DOMAIN,
-            SERVICE_SET_FAN_MODE,
-            {
-                ATTR_ENTITY_ID: self._thermostat_entity_id,
-                ATTR_FAN_MODE: FAN_OFF,
-            },
-        )
+        if self._assist_requested:
+            success = await self._async_service_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_FAN_MODE,
+                {
+                    ATTR_ENTITY_ID: self._thermostat_entity_id,
+                    ATTR_FAN_MODE: FAN_OFF,
+                },
+            )
+
+            if success:
+                self._assist_requested = False
+                self._assist_last_refresh_monotonic = None

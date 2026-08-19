@@ -187,3 +187,105 @@ def test_legacy_yaml_is_not_part_of_active_runtime() -> None:
 
     for entity_id in forbidden:
         assert entity_id not in combined
+
+def test_compatible_test_bench_entry_does_not_require_version_migration() -> None:
+    """Keep ConfigFlow v1 because legacy empty entries remain supported."""
+
+    flow = read("config_flow.py")
+
+    assert "VERSION = 1" in flow
+    assert "VERSION = 2" not in flow
+
+
+def test_actuator_coalesces_updates_without_cancelling_inflight_commands() -> None:
+    """A new controller snapshot must not cancel physical service calls."""
+
+    actuator = read("actuator.py")
+
+    start = actuator.index(
+        "def _handle_controller_update"
+    )
+
+    end = actuator.index(
+        "async def _async_apply_loop",
+        start,
+    )
+
+    handler = actuator[start:end]
+
+    assert "_apply_pending = True" in handler
+    assert ".cancel()" not in handler
+
+    assert "async def _async_apply_loop" in actuator
+
+
+def test_central_assist_only_turns_off_circulation_it_owns() -> None:
+    """Manual Nest fan operation must not be cancelled by an idle controller."""
+
+    actuator = read("actuator.py")
+
+    start = actuator.index(
+        "async def _async_apply_central_assist"
+    )
+
+    end = actuator.index(
+        "@callback\n    def _cancel_assist_off",
+        start,
+    )
+
+    assist = actuator[start:end]
+
+    assert "if not self._assist_requested:" in assist
+    assert "CENTRAL_ASSIST_REFRESH_SECONDS" in assist
+    assert "_assist_last_refresh_monotonic" in assist
+
+    shutdown_start = actuator.index(
+        "async def async_shutdown"
+    )
+
+    shutdown = actuator[shutdown_start:]
+
+    assert "if self._assist_requested:" in shutdown
+
+
+def test_booster_reconciliation_uses_command_cache_and_watchdog() -> None:
+    """Do not depend solely on potentially stale Tuya feedback."""
+
+    actuator = read("actuator.py")
+
+    assert "_last_commanded_speeds" in actuator
+    assert "force_reconcile" in actuator
+    assert (
+        "self._observer.last_watchdog"
+        in actuator
+    )
+
+    assert (
+        "SERVICE_SET_PRESET_MODE"
+        in actuator
+    )
+
+    assert (
+        "SERVICE_SET_PERCENTAGE"
+        in actuator
+    )
+
+    assert (
+        "SERVICE_TURN_ON"
+        in actuator
+    )
+
+
+def test_production_flow_rejects_ambiguous_zone_mappings() -> None:
+    """Prevent multiple logical zones from commanding the same hardware."""
+
+    flow = read("config_flow.py")
+    strings = read("strings.json")
+
+    assert "duplicate_zone_temperature" in flow
+    assert "duplicate_zone_fan" in flow
+    assert "reference_matches_zone" in flow
+
+    assert "duplicate_zone_temperature" in strings
+    assert "duplicate_zone_fan" in strings
+    assert "reference_matches_zone" in strings

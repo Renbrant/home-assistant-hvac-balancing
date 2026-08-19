@@ -30,7 +30,10 @@
       }
     },
     "error": {
-      "actuation_confirmation_required": "Physical actuation must be explicitly enabled before production runtime can be created."
+      "actuation_confirmation_required": "Physical actuation must be explicitly enabled before production runtime can be created.",
+      "duplicate_zone_temperature": "Each balancing zone must use a different temperature sensor.",
+      "duplicate_zone_fan": "Each balancing zone must use a different booster fan.",
+      "reference_matches_zone": "The reference temperature sensor must be different from every zone temperature sensor."
     },
     "abort": {
       "single_instance_allowed": "Only one HVAC Balancing instance can be configured."

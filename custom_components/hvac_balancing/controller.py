@@ -47,6 +47,7 @@ class ControllerEvent(str, Enum):
 
     NORMAL_UPDATE = "normal_update"
     ADAPTIVE_TICK = "adaptive_tick"
+    ADAPTIVE_DUE = "adaptive_due"
     HVAC_MODE_CHANGE = "hvac_mode_change"
     STARTUP = "startup"
 
@@ -59,6 +60,7 @@ class ControllerSettings:
     adaptive_interval_seconds: float = 1200.0
     adaptive_reset_error: float = 1.3
     adaptive_unwind_error: float = 1.5
+    minimum_trend_exposure_seconds: float = 120.0
     poor_improvement_threshold: float = 0.2
     good_improvement_threshold: float = 0.5
     max_speed: int = 10
@@ -340,13 +342,22 @@ def _cooling_exposure_adaptive(
     accumulated_exposure: float,
     settings: ControllerSettings,
 ) -> _ExposureAdaptiveResult:
-    """Evaluate Adaptive I from actual effective cooling exposure."""
+    """Evaluate one independent per-zone Adaptive cooling episode.
+
+    The cooling-exposure strategy no longer uses the global five-minute tick
+    as a decision trigger.
+
+    ADAPTIVE_DUE is the only normal performance-decision event. The Home
+    Assistant adapter will later schedule that event independently for each
+    zone when its required effective cooling exposure has elapsed.
+    """
 
     exposure = max(
         accumulated_exposure,
         0.0,
     )
 
+    # Leaving cooling mode ends the current Adaptive episode.
     if hvac_mode != COOL_MODE:
         return _ExposureAdaptiveResult(
             adaptive_boost=0,
@@ -359,11 +370,13 @@ def _cooling_exposure_adaptive(
             adaptive_action="inactive",
         )
 
-    # NORMAL_UPDATE still must not consume an Adaptive decision. It may,
-    # however, account for elapsed cooling exposure because temporal evidence
-    # is independent from the decision cadence.
+    # Invalid data pauses evidence during ordinary observation. No positive
+    # controller demand is exposed elsewhere while temperatures are invalid.
     if not valid_temperatures or error is None:
-        if event == ControllerEvent.NORMAL_UPDATE:
+        if event in (
+            ControllerEvent.NORMAL_UPDATE,
+            ControllerEvent.ADAPTIVE_TICK,
+        ):
             return _ExposureAdaptiveResult(
                 adaptive_boost=max(
                     previous.adaptive_boost,
@@ -398,46 +411,14 @@ def _cooling_exposure_adaptive(
         error,
     )
 
-    projected_rate = None
-
-    if (
-        previous.reference_error is not None
-        and exposure > 0
-    ):
-        projected_rate = normalized_improvement_rate(
-            previous.reference_error,
-            error,
-            exposure,
-        )
-
-    if event == ControllerEvent.NORMAL_UPDATE:
-        return _ExposureAdaptiveResult(
-            adaptive_boost=max(
-                previous.adaptive_boost,
-                0,
-            ),
-            reference_error=previous.reference_error,
-            last_evaluation=previous.last_evaluation,
-            cooling_exposure_seconds=exposure,
-            required_cooling_exposure_seconds=required,
-            cooling_exposure_progress=progress,
-            improvement_rate_per_10m=projected_rate,
-            adaptive_action=(
-                "observing"
-                if previous.reference_error is not None
-                else "awaiting_reference"
-            ),
-        )
-
-    headroom = max(
-        settings.max_speed - base_target,
-        0,
-    )
-
-    current = min(
-        max(previous.adaptive_boost, 0),
-        headroom,
-    )
+    # ------------------------------------------------------------------
+    # Immediate thermal safety reset
+    #
+    # This intentionally happens BEFORE the NORMAL_UPDATE return.
+    #
+    # A room that is already balanced or colder than the reference must
+    # never retain Adaptive cooling demand while waiting for a timer.
+    # ------------------------------------------------------------------
 
     if error <= settings.adaptive_reset_error:
         return _ExposureAdaptiveResult(
@@ -451,6 +432,27 @@ def _cooling_exposure_adaptive(
             adaptive_action=AdaptiveAction.RESET.value,
         )
 
+    # ------------------------------------------------------------------
+    # Immediate anti-windup
+    #
+    # When Base P already requests Speed 10, Adaptive I has no useful
+    # headroom. End the current Adaptive episode and start fresh if
+    # headroom becomes available later.
+    # ------------------------------------------------------------------
+
+    if base_target >= settings.max_speed:
+        return _ExposureAdaptiveResult(
+            adaptive_boost=0,
+            reference_error=None,
+            last_evaluation=None,
+            cooling_exposure_seconds=0.0,
+            required_cooling_exposure_seconds=required,
+            cooling_exposure_progress=0.0,
+            improvement_rate_per_10m=None,
+            adaptive_action="no_headroom",
+        )
+
+    # A true HVAC mode change starts a fresh observation baseline.
     if event == ControllerEvent.HVAC_MODE_CHANGE:
         return _ExposureAdaptiveResult(
             adaptive_boost=0,
@@ -463,20 +465,18 @@ def _cooling_exposure_adaptive(
             adaptive_action="mode_change_reset",
         )
 
-    # There is no Adaptive headroom while Base P already requests Speed 10.
-    # Start fresh when headroom later becomes available.
-    if base_target >= settings.max_speed:
-        return _ExposureAdaptiveResult(
-            adaptive_boost=0,
-            reference_error=round(error, 2),
-            last_evaluation=now,
-            cooling_exposure_seconds=0.0,
-            required_cooling_exposure_seconds=required,
-            cooling_exposure_progress=0.0,
-            improvement_rate_per_10m=None,
-            adaptive_action="no_headroom",
-        )
+    headroom = max(
+        settings.max_speed - base_target,
+        0,
+    )
 
+    current = min(
+        max(previous.adaptive_boost, 0),
+        headroom,
+    )
+
+    # A missing reference means this is the beginning of a new per-zone
+    # Adaptive episode.
     if (
         previous.reference_error is None
         or previous.last_evaluation is None
@@ -492,6 +492,52 @@ def _cooling_exposure_adaptive(
             adaptive_action="initialize",
         )
 
+    projected_rate = None
+
+    if (
+        exposure
+        >= settings.minimum_trend_exposure_seconds
+    ):
+        projected_rate = normalized_improvement_rate(
+            previous.reference_error,
+            error,
+            exposure,
+        )
+
+    # ------------------------------------------------------------------
+    # Non-decision events
+    #
+    # NORMAL_UPDATE updates Base P, exposure, severity, and diagnostics.
+    #
+    # ADAPTIVE_TICK is intentionally ignored by the new strategy. It is
+    # retained only so the validated legacy engine can continue using it.
+    # ------------------------------------------------------------------
+
+    if event != ControllerEvent.ADAPTIVE_DUE:
+        action = "observing"
+
+        if event == ControllerEvent.ADAPTIVE_TICK:
+            action = "legacy_tick_ignored"
+
+        return _ExposureAdaptiveResult(
+            adaptive_boost=current,
+            reference_error=previous.reference_error,
+            last_evaluation=previous.last_evaluation,
+            cooling_exposure_seconds=exposure,
+            required_cooling_exposure_seconds=required,
+            cooling_exposure_progress=progress,
+            improvement_rate_per_10m=projected_rate,
+            adaptive_action=action,
+        )
+
+    # ------------------------------------------------------------------
+    # Per-zone deadline fired early
+    #
+    # Timer jitter or a severity-window change may make the event arrive
+    # before enough effective cooling evidence has accumulated. Do not make
+    # an Adaptive decision; the adapter will schedule the remaining time.
+    # ------------------------------------------------------------------
+
     if exposure < required:
         return _ExposureAdaptiveResult(
             adaptive_boost=current,
@@ -501,7 +547,7 @@ def _cooling_exposure_adaptive(
             required_cooling_exposure_seconds=required,
             cooling_exposure_progress=progress,
             improvement_rate_per_10m=projected_rate,
-            adaptive_action="observing",
+            adaptive_action="deadline_early",
         )
 
     rate = normalized_improvement_rate(
@@ -532,6 +578,7 @@ def _cooling_exposure_adaptive(
             0,
         )
 
+    # A completed Adaptive decision starts a new episode immediately.
     return _ExposureAdaptiveResult(
         adaptive_boost=updated,
         reference_error=round(error, 2),
@@ -542,7 +589,6 @@ def _cooling_exposure_adaptive(
         improvement_rate_per_10m=rate,
         adaptive_action=action.value,
     )
-
 
 def _legacy_adaptive_boost(
     *,
@@ -807,7 +853,23 @@ def calculate_zone(
     if valid_temperatures and supported_mode:
         effective_speed = pi_target
 
-        if zone_input.hvac_action == COOLING_ACTION:
+        if (
+            zone_input.hvac_action == COOLING_ACTION
+            and settings.adaptive_strategy
+            == ADAPTIVE_STRATEGY_LEGACY
+        ):
+            effective_speed = max(
+                pi_target,
+                settings.minimum_cooling_speed,
+            )
+
+        if (
+            zone_input.hvac_action == COOLING_ACTION
+            and settings.adaptive_strategy
+            == ADAPTIVE_STRATEGY_COOLING_EXPOSURE
+            and error is not None
+            and error > settings.adaptive_reset_error
+        ):
             effective_speed = max(
                 pi_target,
                 settings.minimum_cooling_speed,
@@ -841,6 +903,14 @@ def calculate_zone(
         and supported_mode
         and pi_target == 0
         and zone_input.hvac_action == COOLING_ACTION
+        and (
+            settings.adaptive_strategy
+            == ADAPTIVE_STRATEGY_LEGACY
+            or (
+                error is not None
+                and error > settings.adaptive_reset_error
+            )
+        )
     ):
         reason = "active_cooling_minimum"
 

@@ -98,7 +98,7 @@ class ExposureInitializationTests(unittest.TestCase):
         )
 
         decision = exposure_zone(
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.NORMAL_UPDATE,
             previous=start.next_state,
             now=T0 + timedelta(minutes=5),
         )
@@ -133,13 +133,13 @@ class SevereExposureTests(unittest.TestCase):
         )
 
         five = exposure_zone(
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=start.next_state,
             now=T0 + timedelta(minutes=5),
         )
 
         ten = exposure_zone(
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=five.next_state,
             now=T0 + timedelta(minutes=10),
         )
@@ -205,7 +205,7 @@ class IdlePauseTests(unittest.TestCase):
 
         due = exposure_zone(
             action="cooling",
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=resumed.next_state,
             now=T0 + timedelta(minutes=20),
         )
@@ -282,7 +282,7 @@ class InvalidDataExposureTests(unittest.TestCase):
         )
 
         due = exposure_zone(
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=recovered.next_state,
             now=T0 + timedelta(minutes=20),
         )
@@ -304,7 +304,7 @@ class VariableExposureWindowTests(unittest.TestCase):
 
         ten = exposure_zone(
             room=77.5,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=start.next_state,
             now=T0 + timedelta(minutes=10),
         )
@@ -326,7 +326,7 @@ class VariableExposureWindowTests(unittest.TestCase):
 
         fifteen = exposure_zone(
             room=77.5,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=ten.next_state,
             now=T0 + timedelta(minutes=15),
         )
@@ -344,7 +344,7 @@ class VariableExposureWindowTests(unittest.TestCase):
 
         fifteen = exposure_zone(
             room=76.6,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=start.next_state,
             now=T0 + timedelta(minutes=15),
         )
@@ -361,7 +361,7 @@ class VariableExposureWindowTests(unittest.TestCase):
 
         twenty = exposure_zone(
             room=76.6,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             previous=fifteen.next_state,
             now=T0 + timedelta(minutes=20),
         )
@@ -391,7 +391,7 @@ class NormalizedTrendTests(unittest.TestCase):
         decision = exposure_zone(
             room=78.05,
             previous=previous,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             now=T0 + timedelta(minutes=10),
         )
 
@@ -426,7 +426,7 @@ class NormalizedTrendTests(unittest.TestCase):
         decision = exposure_zone(
             room=78.10,
             previous=previous,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             now=T0 + timedelta(minutes=10),
         )
 
@@ -447,9 +447,9 @@ class NormalizedTrendTests(unittest.TestCase):
 
 
 class ExposureAntiWindupTests(unittest.TestCase):
-    """Verify Base P and Adaptive I remain safely bounded."""
+    """Verify immediate Adaptive anti-windup."""
 
-    def test_normal_update_does_not_clamp_stored_adaptive(self) -> None:
+    def test_normal_update_at_base_ten_resets_adaptive_episode(self) -> None:
         previous = ZoneState(
             base_target=6,
             adaptive_boost=2,
@@ -476,7 +476,7 @@ class ExposureAntiWindupTests(unittest.TestCase):
 
         self.assertEqual(
             decision.adaptive_boost,
-            2,
+            0,
         )
 
         self.assertEqual(
@@ -484,7 +484,17 @@ class ExposureAntiWindupTests(unittest.TestCase):
             10,
         )
 
-    def test_adaptive_tick_at_base_ten_resets_adaptive_window(self) -> None:
+        self.assertEqual(
+            decision.cooling_exposure_seconds,
+            0.0,
+        )
+
+        self.assertEqual(
+            decision.adaptive_action,
+            "no_headroom",
+        )
+
+    def test_adaptive_due_at_base_ten_remains_no_headroom(self) -> None:
         previous = ZoneState(
             base_target=10,
             adaptive_boost=2,
@@ -500,13 +510,8 @@ class ExposureAntiWindupTests(unittest.TestCase):
         decision = exposure_zone(
             room=78.6,
             previous=previous,
-            event=ControllerEvent.ADAPTIVE_TICK,
+            event=ControllerEvent.ADAPTIVE_DUE,
             now=T0 + timedelta(minutes=5),
-        )
-
-        self.assertEqual(
-            decision.base_target,
-            10,
         )
 
         self.assertEqual(
@@ -523,7 +528,6 @@ class ExposureAntiWindupTests(unittest.TestCase):
             decision.adaptive_action,
             "no_headroom",
         )
-
 
 class ExposureResetTests(unittest.TestCase):
     """Verify true mode changes and invalid strategies fail safely."""
@@ -580,6 +584,213 @@ class ExposureResetTests(unittest.TestCase):
                 T0,
                 settings=settings,
             )
+
+
+class RelativeDeadlineSemanticsTests(unittest.TestCase):
+    """Verify global ticks cannot drive the new Adaptive strategy."""
+
+    def test_legacy_global_tick_is_ignored_by_cooling_exposure(self) -> None:
+        start = exposure_zone(
+            event=ControllerEvent.STARTUP,
+        )
+
+        ignored = exposure_zone(
+            event=ControllerEvent.ADAPTIVE_TICK,
+            previous=start.next_state,
+            now=T0 + timedelta(minutes=10),
+        )
+
+        self.assertEqual(
+            ignored.cooling_exposure_seconds,
+            600.0,
+        )
+
+        self.assertEqual(
+            ignored.adaptive_boost,
+            0,
+        )
+
+        self.assertEqual(
+            ignored.adaptive_action,
+            "legacy_tick_ignored",
+        )
+
+        due = exposure_zone(
+            event=ControllerEvent.ADAPTIVE_DUE,
+            previous=ignored.next_state,
+            now=T0 + timedelta(minutes=10),
+        )
+
+        self.assertEqual(
+            due.adaptive_boost,
+            1,
+        )
+
+        self.assertEqual(
+            due.adaptive_action,
+            "increase",
+        )
+
+    def test_early_relative_deadline_does_not_change_adaptive(self) -> None:
+        start = exposure_zone(
+            event=ControllerEvent.STARTUP,
+        )
+
+        early = exposure_zone(
+            event=ControllerEvent.ADAPTIVE_DUE,
+            previous=start.next_state,
+            now=T0 + timedelta(minutes=7),
+        )
+
+        self.assertEqual(
+            early.adaptive_boost,
+            0,
+        )
+
+        self.assertEqual(
+            early.cooling_exposure_seconds,
+            420.0,
+        )
+
+        self.assertEqual(
+            early.adaptive_action,
+            "deadline_early",
+        )
+
+
+class ImmediateThermalResetTests(unittest.TestCase):
+    """Verify an already-balanced room immediately loses cooling demand."""
+
+    def _previous_with_adaptive(self) -> ZoneState:
+        return ZoneState(
+            base_target=8,
+            adaptive_boost=2,
+            reference_error=3.0,
+            last_evaluation=T0,
+            cooling_exposure_seconds=300.0,
+            last_observed_at=T0 + timedelta(minutes=5),
+            observed_hvac_mode="cool",
+            observed_hvac_action="cooling",
+            observed_valid_temperatures=True,
+        )
+
+    def test_normal_temperature_update_resets_adaptive_below_1_3(self) -> None:
+        decision = exposure_zone(
+            room=75.5,
+            previous=self._previous_with_adaptive(),
+            event=ControllerEvent.NORMAL_UPDATE,
+            now=T0 + timedelta(minutes=6),
+        )
+
+        self.assertEqual(
+            decision.directional_error,
+            0.5,
+        )
+
+        self.assertEqual(
+            decision.base_target,
+            0,
+        )
+
+        self.assertEqual(
+            decision.adaptive_boost,
+            0,
+        )
+
+        self.assertEqual(
+            decision.pi_target,
+            0,
+        )
+
+        self.assertEqual(
+            decision.effective_percentage,
+            0,
+        )
+
+        self.assertEqual(
+            decision.cooling_exposure_seconds,
+            0.0,
+        )
+
+        self.assertIsNone(
+            decision.reference_error
+        )
+
+        self.assertEqual(
+            decision.adaptive_action,
+            "reset",
+        )
+
+    def test_overcooled_room_has_zero_effective_demand(self) -> None:
+        decision = exposure_zone(
+            room=73.1,
+            previous=self._previous_with_adaptive(),
+            event=ControllerEvent.NORMAL_UPDATE,
+            now=T0 + timedelta(minutes=6),
+        )
+
+        self.assertLess(
+            decision.directional_error,
+            0,
+        )
+
+        self.assertEqual(
+            decision.adaptive_boost,
+            0,
+        )
+
+        self.assertEqual(
+            decision.pi_target,
+            0,
+        )
+
+        self.assertEqual(
+            decision.effective_speed,
+            0,
+        )
+
+        self.assertEqual(
+            decision.effective_percentage,
+            0,
+        )
+
+        self.assertEqual(
+            decision.adaptive_action,
+            "reset",
+        )
+
+
+class TrendDiagnosticTests(unittest.TestCase):
+    """Verify very short samples do not display misleading huge rates."""
+
+    def test_projected_rate_waits_for_minimum_exposure(self) -> None:
+        previous = ZoneState(
+            base_target=8,
+            adaptive_boost=0,
+            reference_error=3.0,
+            last_evaluation=T0,
+            cooling_exposure_seconds=0.0,
+            last_observed_at=T0,
+            observed_hvac_mode="cool",
+            observed_hvac_action="cooling",
+            observed_valid_temperatures=True,
+        )
+
+        decision = exposure_zone(
+            room=78.1,
+            previous=previous,
+            event=ControllerEvent.NORMAL_UPDATE,
+            now=T0 + timedelta(seconds=30),
+        )
+
+        self.assertIsNone(
+            decision.improvement_rate_per_10m
+        )
+
+        self.assertEqual(
+            decision.adaptive_action,
+            "observing",
+        )
 
 
 if __name__ == "__main__":

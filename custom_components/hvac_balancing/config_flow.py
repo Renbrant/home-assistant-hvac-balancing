@@ -17,6 +17,10 @@ from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
 )
 
 from .configuration import (
@@ -25,7 +29,15 @@ from .configuration import (
     validate_zone_records,
 )
 from .const import (
+    CENTRAL_ASSIST_MODE_CLIMATE,
+    CENTRAL_ASSIST_MODE_DISABLED,
+    CENTRAL_ASSIST_MODE_FAN,
+    CENTRAL_ASSIST_MODE_NEST,
     CONF_ACTUATION_ENABLED,
+    CONF_CENTRAL_ASSIST_ENTITY,
+    CONF_CENTRAL_ASSIST_MODE,
+    CONF_CENTRAL_ASSIST_OFF_MODE,
+    CONF_CENTRAL_ASSIST_ON_MODE,
     CONF_ADD_ANOTHER_ZONE,
     CONF_CONFIRM_REMOVE,
     CONF_REFERENCE_SENSOR,
@@ -38,6 +50,7 @@ from .const import (
     CONF_ZONE_TO_EDIT,
     CONF_ZONE_TO_REMOVE,
     CONF_ZONES,
+    DEFAULT_CENTRAL_ASSIST_MODE,
     DOMAIN,
     NAME,
     RUNTIME_MODE_PRODUCTION,
@@ -52,6 +65,86 @@ def _entity_selector(domain: str) -> EntitySelector:
         EntitySelectorConfig(
             domain=domain
         )
+    )
+
+
+CENTRAL_ASSIST_OPTIONS = [
+    SelectOptionDict(
+        value=CENTRAL_ASSIST_MODE_DISABLED,
+        label="Disabled",
+    ),
+    SelectOptionDict(
+        value=CENTRAL_ASSIST_MODE_FAN,
+        label="Fan entity",
+    ),
+    SelectOptionDict(
+        value=CENTRAL_ASSIST_MODE_CLIMATE,
+        label="Climate fan mode",
+    ),
+    SelectOptionDict(
+        value=CENTRAL_ASSIST_MODE_NEST,
+        label="Nest fan timer",
+    ),
+]
+
+
+def _central_assist_mode_schema(
+    default: str = DEFAULT_CENTRAL_ASSIST_MODE,
+) -> vol.Schema:
+    """Return the Central Assist strategy selector."""
+
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_CENTRAL_ASSIST_MODE,
+                default=default,
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=CENTRAL_ASSIST_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        }
+    )
+
+
+def _central_assist_fan_schema(
+    default: str | None = None,
+) -> vol.Schema:
+    """Return Central Assist fan-entity configuration."""
+
+    configured_default: Any = vol.UNDEFINED
+
+    if default:
+        configured_default = default
+
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_CENTRAL_ASSIST_ENTITY,
+                default=configured_default,
+            ): _entity_selector("fan")
+        }
+    )
+
+
+def _central_assist_climate_schema(
+    fan_mode_on: str = "on",
+    fan_mode_off: str = "off",
+) -> vol.Schema:
+    """Return generic climate fan-mode configuration."""
+
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_CENTRAL_ASSIST_ON_MODE,
+                default=fan_mode_on,
+            ): str,
+            vol.Required(
+                CONF_CENTRAL_ASSIST_OFF_MODE,
+                default=fan_mode_off,
+            ): str,
+        }
     )
 
 
@@ -151,6 +244,9 @@ class HVACBalancingConfigFlow(
         """Initialize setup wizard state."""
 
         self._production_data: dict[str, Any] = {}
+        self._central_assist_data: dict[str, Any] = {
+            CONF_CENTRAL_ASSIST_MODE: DEFAULT_CENTRAL_ASSIST_MODE,
+        }
         self._zones: list[dict[str, str]] = []
 
     @staticmethod
@@ -231,13 +327,98 @@ class HVACBalancingConfigFlow(
                 }
 
                 self._zones = []
+                self._central_assist_data = {
+                    CONF_CENTRAL_ASSIST_MODE: DEFAULT_CENTRAL_ASSIST_MODE,
+                }
 
-                return await self.async_step_production_zone()
+                return await self.async_step_production_central_assist()
 
         return self.async_show_form(
             step_id="production",
             data_schema=_production_schema(),
             errors=errors,
+        )
+
+    async def async_step_production_central_assist(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Choose how Central Assist is physically actuated."""
+
+        if user_input is not None:
+            mode = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_MODE
+                ]
+            )
+
+            self._central_assist_data = {
+                CONF_CENTRAL_ASSIST_MODE: mode,
+            }
+
+            if mode == CENTRAL_ASSIST_MODE_FAN:
+                return await self.async_step_production_central_assist_fan()
+
+            if mode == CENTRAL_ASSIST_MODE_CLIMATE:
+                return await self.async_step_production_central_assist_climate()
+
+            return await self.async_step_production_zone()
+
+        return self.async_show_form(
+            step_id="production_central_assist",
+            data_schema=_central_assist_mode_schema(),
+        )
+
+    async def async_step_production_central_assist_fan(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Choose a fan entity for Central Assist."""
+
+        if user_input is not None:
+            self._central_assist_data[
+                CONF_CENTRAL_ASSIST_ENTITY
+            ] = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_ENTITY
+                ]
+            )
+
+            return await self.async_step_production_zone()
+
+        return self.async_show_form(
+            step_id="production_central_assist_fan",
+            data_schema=_central_assist_fan_schema(),
+        )
+
+    async def async_step_production_central_assist_climate(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Configure generic climate fan modes for Central Assist."""
+
+        if user_input is not None:
+            self._central_assist_data[
+                CONF_CENTRAL_ASSIST_ON_MODE
+            ] = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_ON_MODE
+                ]
+            ).strip()
+
+            self._central_assist_data[
+                CONF_CENTRAL_ASSIST_OFF_MODE
+            ] = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_OFF_MODE
+                ]
+            ).strip()
+
+            return await self.async_step_production_zone()
+
+        return self.async_show_form(
+            step_id="production_central_assist_climate",
+            data_schema=_central_assist_climate_schema(),
         )
 
     async def async_step_production_zone(
@@ -292,6 +473,7 @@ class HVACBalancingConfigFlow(
                     data={
                         CONF_RUNTIME_MODE: RUNTIME_MODE_PRODUCTION,
                         **self._production_data,
+                        **self._central_assist_data,
                         CONF_ZONES: self._zones,
                     },
                 )
@@ -340,6 +522,34 @@ class HVACBalancingOptionsFlow(OptionsFlow):
             )
         )
 
+        self._central_assist_mode = str(
+            config.get(
+                CONF_CENTRAL_ASSIST_MODE,
+                DEFAULT_CENTRAL_ASSIST_MODE,
+            )
+        )
+
+        self._central_assist_entity = str(
+            config.get(
+                CONF_CENTRAL_ASSIST_ENTITY,
+                "",
+            )
+        )
+
+        self._central_assist_on_mode = str(
+            config.get(
+                CONF_CENTRAL_ASSIST_ON_MODE,
+                "on",
+            )
+        )
+
+        self._central_assist_off_mode = str(
+            config.get(
+                CONF_CENTRAL_ASSIST_OFF_MODE,
+                "off",
+            )
+        )
+
         self._zones = normalize_zone_records(
             config.get(
                 CONF_ZONES,
@@ -352,13 +562,30 @@ class HVACBalancingOptionsFlow(OptionsFlow):
     def _finish(self) -> ConfigFlowResult:
         """Store complete editable configuration in entry options."""
 
+        data: dict[str, Any] = {
+            CONF_THERMOSTAT: self._thermostat,
+            CONF_REFERENCE_SENSOR: self._reference_sensor,
+            CONF_CENTRAL_ASSIST_MODE: self._central_assist_mode,
+            CONF_ZONES: self._zones,
+        }
+
+        if self._central_assist_mode == CENTRAL_ASSIST_MODE_FAN:
+            data[
+                CONF_CENTRAL_ASSIST_ENTITY
+            ] = self._central_assist_entity
+
+        if self._central_assist_mode == CENTRAL_ASSIST_MODE_CLIMATE:
+            data[
+                CONF_CENTRAL_ASSIST_ON_MODE
+            ] = self._central_assist_on_mode
+
+            data[
+                CONF_CENTRAL_ASSIST_OFF_MODE
+            ] = self._central_assist_off_mode
+
         return self.async_create_entry(
             title="",
-            data={
-                CONF_THERMOSTAT: self._thermostat,
-                CONF_REFERENCE_SENSOR: self._reference_sensor,
-                CONF_ZONES: self._zones,
-            },
+            data=data,
         )
 
     async def async_step_init(
@@ -376,6 +603,7 @@ class HVACBalancingOptionsFlow(OptionsFlow):
             step_id="init",
             menu_options=[
                 "system",
+                "central_assist",
                 "add_zone",
                 "edit_zone",
                 "remove_zone",
@@ -433,6 +661,95 @@ class HVACBalancingOptionsFlow(OptionsFlow):
             step_id="system",
             data_schema=schema,
             errors=errors,
+        )
+
+    async def async_step_central_assist(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Change the Central Assist actuation strategy."""
+
+        if user_input is not None:
+            self._central_assist_mode = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_MODE
+                ]
+            )
+
+            if self._central_assist_mode == CENTRAL_ASSIST_MODE_FAN:
+                return await self.async_step_central_assist_fan()
+
+            if self._central_assist_mode == CENTRAL_ASSIST_MODE_CLIMATE:
+                return await self.async_step_central_assist_climate()
+
+            self._central_assist_entity = ""
+            self._central_assist_on_mode = "on"
+            self._central_assist_off_mode = "off"
+
+            return self._finish()
+
+        return self.async_show_form(
+            step_id="central_assist",
+            data_schema=_central_assist_mode_schema(
+                self._central_assist_mode
+            ),
+        )
+
+    async def async_step_central_assist_fan(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Configure a dedicated Central Assist fan entity."""
+
+        if user_input is not None:
+            self._central_assist_entity = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_ENTITY
+                ]
+            )
+
+            self._central_assist_on_mode = "on"
+            self._central_assist_off_mode = "off"
+
+            return self._finish()
+
+        return self.async_show_form(
+            step_id="central_assist_fan",
+            data_schema=_central_assist_fan_schema(
+                self._central_assist_entity
+                or None
+            ),
+        )
+
+    async def async_step_central_assist_climate(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Configure generic climate fan modes."""
+
+        if user_input is not None:
+            self._central_assist_on_mode = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_ON_MODE
+                ]
+            ).strip()
+
+            self._central_assist_off_mode = str(
+                user_input[
+                    CONF_CENTRAL_ASSIST_OFF_MODE
+                ]
+            ).strip()
+
+            self._central_assist_entity = ""
+
+            return self._finish()
+
+        return self.async_show_form(
+            step_id="central_assist_climate",
+            data_schema=_central_assist_climate_schema(
+                self._central_assist_on_mode,
+                self._central_assist_off_mode,
+            ),
         )
 
     async def async_step_add_zone(

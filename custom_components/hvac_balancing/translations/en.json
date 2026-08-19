@@ -32,6 +32,28 @@
           "booster_fan": "Zone booster fan",
           "add_another_zone": "Add another zone after this one"
         }
+      },
+      "production_central_assist": {
+        "title": "Central assist",
+        "description": "Choose how HVAC Balancing should request additional central airflow. Disabled is safest when no compatible central assist control is available.",
+        "data": {
+          "central_assist_mode": "Central assist control"
+        }
+      },
+      "production_central_assist_fan": {
+        "title": "Central assist fan",
+        "description": "Choose a fan entity that represents the central blower or circulation fan.",
+        "data": {
+          "central_assist_entity": "Central assist fan entity"
+        }
+      },
+      "production_central_assist_climate": {
+        "title": "Climate fan mode",
+        "description": "Enter the thermostat fan-mode values used to start and stop central circulation.",
+        "data": {
+          "central_assist_on_mode": "Active fan mode",
+          "central_assist_off_mode": "Inactive fan mode"
+        }
       }
     },
     "error": {
@@ -53,6 +75,7 @@
         "description": "Change system entities or manage balancing zones.",
         "menu_options": {
           "system": "System entities",
+          "central_assist": "Central assist",
           "add_zone": "Add zone",
           "edit_zone": "Edit zone",
           "remove_zone": "Remove zone"
@@ -97,6 +120,28 @@
         "data": {
           "zone_to_remove": "Zone",
           "confirm_remove": "Confirm zone removal"
+        }
+      },
+      "central_assist": {
+        "title": "Central assist",
+        "description": "Choose how HVAC Balancing should request additional central airflow.",
+        "data": {
+          "central_assist_mode": "Central assist control"
+        }
+      },
+      "central_assist_fan": {
+        "title": "Central assist fan",
+        "description": "Choose a fan entity that represents the central blower or circulation fan.",
+        "data": {
+          "central_assist_entity": "Central assist fan entity"
+        }
+      },
+      "central_assist_climate": {
+        "title": "Climate fan mode",
+        "description": "Enter the thermostat fan-mode values used to start and stop central circulation.",
+        "data": {
+          "central_assist_on_mode": "Active fan mode",
+          "central_assist_off_mode": "Inactive fan mode"
         }
       }
     },

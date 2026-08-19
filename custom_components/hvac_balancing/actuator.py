@@ -31,6 +31,13 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
+from .configuration import CentralAssistConfig
+from .const import (
+    CENTRAL_ASSIST_MODE_CLIMATE,
+    CENTRAL_ASSIST_MODE_DISABLED,
+    CENTRAL_ASSIST_MODE_FAN,
+    CENTRAL_ASSIST_MODE_NEST,
+)
 from .observation import (
     HVACBalancingObservationRuntime,
     ObservationZoneConfig,
@@ -58,6 +65,7 @@ class HVACBalancingActuator:
         *,
         observer: HVACBalancingObservationRuntime,
         thermostat_entity_id: str,
+        central_assist: CentralAssistConfig,
         zones: tuple[ObservationZoneConfig, ...],
     ) -> None:
         """Initialize active actuator runtime."""
@@ -65,6 +73,7 @@ class HVACBalancingActuator:
         self.hass = hass
         self._observer = observer
         self._thermostat_entity_id = thermostat_entity_id
+        self._central_assist = central_assist
         self._zones = tuple(zones)
 
         if any(
@@ -321,34 +330,34 @@ class HVACBalancingActuator:
         self,
         required: bool,
     ) -> None:
-        """Apply only central circulation owned by this actuator."""
+        """Apply Central Assist using the configured installation adapter."""
+
+        mode = self._central_assist.mode
+
+        if mode == CENTRAL_ASSIST_MODE_DISABLED:
+            self._cancel_assist_off()
+            return
 
         if required:
             self._cancel_assist_off()
 
-            now_monotonic = time.monotonic()
+            if mode == CENTRAL_ASSIST_MODE_NEST:
+                now_monotonic = time.monotonic()
 
-            refresh_due = (
-                not self._assist_requested
-                or self._assist_last_refresh_monotonic is None
-                or (
-                    now_monotonic
-                    - self._assist_last_refresh_monotonic
+                refresh_due = (
+                    not self._assist_requested
+                    or self._assist_last_refresh_monotonic is None
+                    or (
+                        now_monotonic
+                        - self._assist_last_refresh_monotonic
+                    )
+                    >= CENTRAL_ASSIST_REFRESH_SECONDS
                 )
-                >= CENTRAL_ASSIST_REFRESH_SECONDS
-            )
 
-            if refresh_due:
-                success = await self._async_service_call(
-                    NEST_DOMAIN,
-                    NEST_SERVICE_SET_FAN_TIMER,
-                    {
-                        ATTR_ENTITY_ID: self._thermostat_entity_id,
-                        "duration": {
-                            "hours": CENTRAL_ASSIST_TIMER_HOURS,
-                        },
-                    },
-                )
+                if not refresh_due:
+                    return
+
+                success = await self._async_request_central_assist()
 
                 if success:
                     self._assist_requested = True
@@ -356,9 +365,20 @@ class HVACBalancingActuator:
                         now_monotonic
                     )
 
+                return
+
+            if self._assist_requested:
+                return
+
+            success = await self._async_request_central_assist()
+
+            if success:
+                self._assist_requested = True
+                self._assist_last_refresh_monotonic = None
+
             return
 
-        # Never turn off fan circulation that HVAC Balancing did not start.
+        # Never turn off Central Assist that HVAC Balancing did not start.
         if not self._assist_requested:
             self._cancel_assist_off()
             return
@@ -371,9 +391,103 @@ class HVACBalancingActuator:
                 self._async_delayed_assist_off()
             )
 
+    async def _async_request_central_assist(self) -> bool:
+        """Start Central Assist through the selected adapter."""
+
+        mode = self._central_assist.mode
+
+        if mode == CENTRAL_ASSIST_MODE_FAN:
+            fan_entity_id = self._central_assist.fan_entity_id
+
+            if fan_entity_id is None:
+                return False
+
+            return await self._async_service_call(
+                FAN_DOMAIN,
+                SERVICE_TURN_ON,
+                {
+                    ATTR_ENTITY_ID: fan_entity_id,
+                },
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_CLIMATE:
+            fan_mode_on = self._central_assist.fan_mode_on
+
+            if fan_mode_on is None:
+                return False
+
+            return await self._async_service_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_FAN_MODE,
+                {
+                    ATTR_ENTITY_ID: self._thermostat_entity_id,
+                    ATTR_FAN_MODE: fan_mode_on,
+                },
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_NEST:
+            return await self._async_service_call(
+                NEST_DOMAIN,
+                NEST_SERVICE_SET_FAN_TIMER,
+                {
+                    ATTR_ENTITY_ID: self._thermostat_entity_id,
+                    "duration": {
+                        "hours": CENTRAL_ASSIST_TIMER_HOURS,
+                    },
+                },
+            )
+
+        return False
+
+    async def _async_release_owned_central_assist(self) -> bool:
+        """Stop only Central Assist previously started by this actuator."""
+
+        mode = self._central_assist.mode
+
+        if mode == CENTRAL_ASSIST_MODE_FAN:
+            fan_entity_id = self._central_assist.fan_entity_id
+
+            if fan_entity_id is None:
+                return False
+
+            return await self._async_service_call(
+                FAN_DOMAIN,
+                SERVICE_TURN_OFF,
+                {
+                    ATTR_ENTITY_ID: fan_entity_id,
+                },
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_CLIMATE:
+            fan_mode_off = self._central_assist.fan_mode_off
+
+            if fan_mode_off is None:
+                return False
+
+            return await self._async_service_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_FAN_MODE,
+                {
+                    ATTR_ENTITY_ID: self._thermostat_entity_id,
+                    ATTR_FAN_MODE: fan_mode_off,
+                },
+            )
+
+        if mode == CENTRAL_ASSIST_MODE_NEST:
+            return await self._async_service_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_FAN_MODE,
+                {
+                    ATTR_ENTITY_ID: self._thermostat_entity_id,
+                    ATTR_FAN_MODE: FAN_OFF,
+                },
+            )
+
+        return False
+
     @callback
     def _cancel_assist_off(self) -> None:
-        """Cancel a pending central-assist shutdown."""
+        """Cancel a pending Central Assist shutdown."""
 
         if (
             self._assist_off_task is not None
@@ -384,7 +498,7 @@ class HVACBalancingActuator:
         self._assist_off_task = None
 
     async def _async_delayed_assist_off(self) -> None:
-        """Turn owned Nest circulation off after the five-minute grace."""
+        """Turn owned Central Assist off after the five-minute grace."""
 
         current_task = asyncio.current_task()
 
@@ -393,14 +507,7 @@ class HVACBalancingActuator:
                 CENTRAL_ASSIST_OFF_DELAY_SECONDS
             )
 
-            success = await self._async_service_call(
-                CLIMATE_DOMAIN,
-                SERVICE_SET_FAN_MODE,
-                {
-                    ATTR_ENTITY_ID: self._thermostat_entity_id,
-                    ATTR_FAN_MODE: FAN_OFF,
-                },
-            )
+            success = await self._async_release_owned_central_assist()
 
             if success:
                 self._assist_requested = False
@@ -473,14 +580,7 @@ class HVACBalancingActuator:
             )
 
         if self._assist_requested:
-            success = await self._async_service_call(
-                CLIMATE_DOMAIN,
-                SERVICE_SET_FAN_MODE,
-                {
-                    ATTR_ENTITY_ID: self._thermostat_entity_id,
-                    ATTR_FAN_MODE: FAN_OFF,
-                },
-            )
+            success = await self._async_release_owned_central_assist()
 
             if success:
                 self._assist_requested = False

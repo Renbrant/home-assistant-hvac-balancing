@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from .actuator import HVACBalancingActuator
 from .configuration import (
     build_observation_zones,
+    central_assist_config,
     merged_entry_config,
     production_core_config,
     stale_production_zone_unique_ids,
@@ -168,6 +169,10 @@ async def async_setup_entry(
                 )
             )
 
+            assist_config = central_assist_config(
+                config
+            )
+
             raw_zones = config.get(
                 CONF_ZONES,
                 [],
@@ -219,6 +224,7 @@ async def async_setup_entry(
             hass,
             observer=observer,
             thermostat_entity_id=thermostat_entity_id,
+            central_assist=assist_config,
             zones=zones,
         )
 

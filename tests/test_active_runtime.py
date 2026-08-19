@@ -347,6 +347,9 @@ def test_options_flow_supports_runtime_reconfiguration() -> None:
 
     for step in (
         "async_step_system",
+        "async_step_central_assist",
+        "async_step_central_assist_fan",
+        "async_step_central_assist_climate",
         "async_step_add_zone",
         "async_step_edit_zone",
         "async_step_edit_zone_detail",
@@ -397,6 +400,7 @@ def test_config_flow_menu_labels_follow_home_assistant_schema() -> None:
 
     assert options_step["menu_options"] == {
         "system": "System entities",
+        "central_assist": "Central assist",
         "add_zone": "Add zone",
         "edit_zone": "Edit zone",
         "remove_zone": "Remove zone",
@@ -445,3 +449,35 @@ def test_removed_zones_cleanup_entity_registry() -> None:
     assert cleanup_call != -1
     assert platform_setup != -1
     assert cleanup_call < platform_setup
+
+def test_central_assist_is_installation_agnostic() -> None:
+    """Central Assist must not require Nest or any one hardware model."""
+
+    actuator = read("actuator.py")
+    configuration = read("configuration.py")
+    flow = read("config_flow.py")
+    init = read("__init__.py")
+
+    for mode in (
+        "CENTRAL_ASSIST_MODE_DISABLED",
+        "CENTRAL_ASSIST_MODE_FAN",
+        "CENTRAL_ASSIST_MODE_CLIMATE",
+        "CENTRAL_ASSIST_MODE_NEST",
+    ):
+        assert mode in actuator
+        assert mode in configuration
+        assert mode in flow
+
+    assert "central_assist_config" in init
+    assert "central_assist=assist_config" in init
+
+    assert "_async_request_central_assist" in actuator
+    assert "_async_release_owned_central_assist" in actuator
+
+    assert "SERVICE_TURN_ON" in actuator
+    assert "SERVICE_TURN_OFF" in actuator
+    assert "SERVICE_SET_FAN_MODE" in actuator
+    assert "NEST_SERVICE_SET_FAN_TIMER" in actuator
+
+    assert "DEFAULT_CENTRAL_ASSIST_MODE" in configuration
+    assert "CENTRAL_ASSIST_MODE_DISABLED" in configuration

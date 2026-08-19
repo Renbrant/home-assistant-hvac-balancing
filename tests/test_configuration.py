@@ -93,11 +93,20 @@ configuration = load_module(
 merged_entry_config = configuration.merged_entry_config
 normalize_zone_records = configuration.normalize_zone_records
 production_core_config = configuration.production_core_config
+central_assist_config = configuration.central_assist_config
 validate_zone_records = configuration.validate_zone_records
 stale_production_zone_unique_ids = (
     configuration.stale_production_zone_unique_ids
 )
 
+CENTRAL_ASSIST_MODE_CLIMATE = const.CENTRAL_ASSIST_MODE_CLIMATE
+CENTRAL_ASSIST_MODE_DISABLED = const.CENTRAL_ASSIST_MODE_DISABLED
+CENTRAL_ASSIST_MODE_FAN = const.CENTRAL_ASSIST_MODE_FAN
+CENTRAL_ASSIST_MODE_NEST = const.CENTRAL_ASSIST_MODE_NEST
+CONF_CENTRAL_ASSIST_ENTITY = const.CONF_CENTRAL_ASSIST_ENTITY
+CONF_CENTRAL_ASSIST_MODE = const.CONF_CENTRAL_ASSIST_MODE
+CONF_CENTRAL_ASSIST_OFF_MODE = const.CONF_CENTRAL_ASSIST_OFF_MODE
+CONF_CENTRAL_ASSIST_ON_MODE = const.CONF_CENTRAL_ASSIST_ON_MODE
 CONF_REFERENCE_SENSOR = const.CONF_REFERENCE_SENSOR
 CONF_THERMOSTAT = const.CONF_THERMOSTAT
 CONF_ZONE_FAN = const.CONF_ZONE_FAN
@@ -349,6 +358,77 @@ class ConfigurationNormalizationTests(unittest.TestCase):
         self.assertEqual(
             reference,
             "sensor.reference",
+        )
+
+
+class CentralAssistConfigurationTests(unittest.TestCase):
+    """Verify Central Assist remains portable and safe by default."""
+
+    def test_missing_config_defaults_to_disabled(self) -> None:
+        assist = central_assist_config({})
+
+        self.assertEqual(
+            assist.mode,
+            CENTRAL_ASSIST_MODE_DISABLED,
+        )
+
+    def test_fan_entity_mode_requires_fan(self) -> None:
+        with self.assertRaises(ValueError):
+            central_assist_config(
+                {
+                    CONF_CENTRAL_ASSIST_MODE: CENTRAL_ASSIST_MODE_FAN,
+                }
+            )
+
+    def test_fan_entity_mode_accepts_fan(self) -> None:
+        assist = central_assist_config(
+            {
+                CONF_CENTRAL_ASSIST_MODE: CENTRAL_ASSIST_MODE_FAN,
+                CONF_CENTRAL_ASSIST_ENTITY: "fan.central_blower",
+            }
+        )
+
+        self.assertEqual(
+            assist.fan_entity_id,
+            "fan.central_blower",
+        )
+
+    def test_climate_mode_requires_explicit_on_and_off_modes(self) -> None:
+        with self.assertRaises(ValueError):
+            central_assist_config(
+                {
+                    CONF_CENTRAL_ASSIST_MODE: CENTRAL_ASSIST_MODE_CLIMATE,
+                }
+            )
+
+        assist = central_assist_config(
+            {
+                CONF_CENTRAL_ASSIST_MODE: CENTRAL_ASSIST_MODE_CLIMATE,
+                CONF_CENTRAL_ASSIST_ON_MODE: "circulate",
+                CONF_CENTRAL_ASSIST_OFF_MODE: "off",
+            }
+        )
+
+        self.assertEqual(
+            assist.fan_mode_on,
+            "circulate",
+        )
+
+        self.assertEqual(
+            assist.fan_mode_off,
+            "off",
+        )
+
+    def test_nest_mode_requires_no_extra_entity_mapping(self) -> None:
+        assist = central_assist_config(
+            {
+                CONF_CENTRAL_ASSIST_MODE: CENTRAL_ASSIST_MODE_NEST,
+            }
+        )
+
+        self.assertEqual(
+            assist.mode,
+            CENTRAL_ASSIST_MODE_NEST,
         )
 
 

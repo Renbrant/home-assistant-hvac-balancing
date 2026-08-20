@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-NORMALIZER_VERSION = "1.0.0"
+NORMALIZER_VERSION = "1.0.1"
 
 BEDS = ("bed_1", "bed_2", "bed_3")
 
@@ -399,6 +399,13 @@ def normalize(
             "filename": raw_path.name,
             "size_bytes": len(raw_bytes),
             "sha256": hashlib.sha256(raw_bytes).hexdigest().upper(),
+        },
+        "counts": {
+            "tracked_rows_after_dedup": len(flat),
+            "window_rows": len(normalized),
+            "states_rows": len(states),
+            "climate_rows": len(climate),
+            "adaptive_rows": len(adaptive),
         },
         "validation": {
             "required_start_seeds_present": True,

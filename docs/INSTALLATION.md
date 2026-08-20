@@ -1,12 +1,40 @@
 # HVAC Balancing v0.2 Installation
 
-**Current release: v0.2.0-beta.9**
+**Current release: v0.2.10**
 
 ## Safety
 
 > Only one physical HVAC balancing controller may have actuator authority at a time.
 
-## Manual installation
+## Recommended installation: HACS
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Renbrant&repository=home-assistant-hvac-balancing&category=integration)
+
+### Add the custom repository
+
+1. Open **HACS** in Home Assistant.
+2. Open **Custom repositories**.
+3. Add:
+
+   `https://github.com/Renbrant/home-assistant-hvac-balancing`
+
+4. Select **Integration** as the repository type.
+5. Open **HVAC Balancing** in HACS.
+6. Download the latest release.
+7. Restart Home Assistant.
+
+### Configure HVAC Balancing
+
+After restarting Home Assistant:
+
+1. Open **Settings -> Devices & services**.
+2. Select **Add Integration**.
+3. Search for **HVAC Balancing**.
+4. Complete the configuration flow.
+
+> Only one physical HVAC balancing controller may have actuator authority at a time.
+
+## Manual installation (fallback)
 
 Copy:
 

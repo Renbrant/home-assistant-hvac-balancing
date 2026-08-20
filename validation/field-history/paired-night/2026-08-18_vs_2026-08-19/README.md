@@ -44,9 +44,15 @@ The normalization process:
 
 Reference analyzer: `analysis/analyze_hvac_baseline.py`
 
-Analysis methodology version: `1.1.0`
+Analysis methodology version: `1.2.0`
+
+Methodology addendum: `validation/methodology/HVAC_ANALYZER_1.2.0.md`
+
+Validated analyzer commit: `9c08e095693ffc922ab97ff524e309257c3cc172`
 
 Booster activity is defined as `effective_percentage > 0`. The logical `fan.*` state is not used as the authoritative booster-activity definition.
+
+Analyzer 1.2.0 explicitly separates whole-window directional statistics from `directional_hvac_active` statistics. These contexts must not be treated as interchangeable.
 
 ## Dataset layout
 
@@ -65,10 +71,10 @@ Booster activity is defined as `effective_percentage > 0`. The logical `fan.*` s
             ├── climate.csv
             └── adaptive-controller.csv
 
-## Interpretation status
+## Interpretation
 
 The normalized datasets are immutable comparison evidence.
 
-The final paired-night interpretation is kept separate from the dataset itself so analyzer-output semantics can be validated before conclusions are published. In particular, whole-window directional statistics and HVAC-active directional statistics must not be treated as interchangeable.
+The formal paired-night interpretation is stored under `validation/reports/` and must preserve analyzer context names when reporting thermal statistics.
 
 No Home Assistant configuration or HVAC controller parameter was changed while creating these datasets.

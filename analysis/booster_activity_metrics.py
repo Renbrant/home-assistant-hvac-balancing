@@ -75,9 +75,15 @@ def booster_activity_metrics(
     - active modulation: positive-to-positive percentage change;
     - equivalent full-speed hours: integral of percentage / 100 over time.
 
-    ``active_modulation_changes_per_hvac_hour`` preserves the validated
-    paired-night normalization: all active modulation events in the monitored
-    window divided by HVAC-active hours in that same window.
+    ``active_modulation_changes`` counts positive-to-positive changes over the
+    full monitored window.
+
+    ``active_modulation_changes_per_hvac_hour`` counts only positive-to-positive
+    changes whose new sample occurs while ``hvac_action`` is ``cooling`` or
+    ``heating``, divided by HVAC-active hours in the same window.
+
+    ``median_minutes_between_active_modulations`` remains a whole-window cadence
+    metric and is intentionally not HVAC-scoped.
     """
 
     rows = [
@@ -131,6 +137,7 @@ def booster_activity_metrics(
 
     command_changes = 0
     modulation_times: list[datetime] = []
+    hvac_modulation_count = 0
     previous: float | None = None
 
     for row, value in zip(rows, values):
@@ -138,6 +145,8 @@ def booster_activity_metrics(
             command_changes += 1
             if previous > 0 and value > 0:
                 modulation_times.append(row["time"])
+                if row.get("hvac_action") in ("cooling", "heating"):
+                    hvac_modulation_count += 1
         previous = value
 
     modulation_intervals = [
@@ -182,7 +191,7 @@ def booster_activity_metrics(
         "command_changes": command_changes,
         "active_modulation_changes": len(modulation_times),
         "active_modulation_changes_per_hvac_hour": _rounded(
-            len(modulation_times) / hvac_hours if hvac_hours else None,
+            hvac_modulation_count / hvac_hours if hvac_hours else None,
             2,
         ),
         "median_minutes_between_active_modulations": _rounded(

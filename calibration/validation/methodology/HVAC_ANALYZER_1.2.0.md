@@ -1,7 +1,7 @@
 # HVAC Analyzer Methodology Addendum — 1.2.0
 
 This addendum extends the field-calibration methodology in
-`validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md`.
+`calibration/validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md`.
 
 It is additive. Existing analysis methodology 1.0.0 and 1.1.0 metrics retain
 their established definitions.
@@ -28,7 +28,7 @@ Version 1.2.0 removes that ambiguity.
 
 Reference implementation:
 
-`analysis/analyze_hvac_baseline.py`
+`calibration/analysis/analyze_hvac_baseline.py`
 
 Analysis methodology version:
 
@@ -95,7 +95,7 @@ reported together without an external calculation script.
 
 The first production v0.2 paired-night datasets are stored under:
 
-`validation/field-history/paired-night/2026-08-18_vs_2026-08-19/`
+`calibration/validation/field-history/paired-night/2026-08-18_vs_2026-08-19/`
 
 For those datasets, analyzer 1.2.0 reproduces the previously validated
 HVAC-active directional statistics:

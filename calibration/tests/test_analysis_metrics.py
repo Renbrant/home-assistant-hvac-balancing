@@ -8,13 +8,14 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from analysis.booster_activity_metrics import booster_activity_metrics
+from calibration.analysis.booster_activity_metrics import booster_activity_metrics
 
 
-ROOT = Path(__file__).resolve().parents[1]
-ANALYZER = ROOT / "analysis" / "analyze_hvac_baseline.py"
+ROOT = Path(__file__).resolve().parents[2]
+ANALYZER = ROOT / "calibration" / "analysis" / "analyze_hvac_baseline.py"
 BASELINE = (
     ROOT
+    / "calibration"
     / "validation"
     / "field-history"
     / "2026-08-12_to_2026-08-18"

@@ -28,7 +28,7 @@ Reconstructed resolution:
 Methodology:
 
 ```text
-validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md
+calibration/validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md
 ```
 
 ---
@@ -412,7 +412,7 @@ gains are changed.
 
 This baseline is reproducible using the versioned analyzer:
 
-`analysis/analyze_hvac_baseline.py`
+`calibration/analysis/analyze_hvac_baseline.py`
 
 Analysis methodology version: `1.0.0`.
 

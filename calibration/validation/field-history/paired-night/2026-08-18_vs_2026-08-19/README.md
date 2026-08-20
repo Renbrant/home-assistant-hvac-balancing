@@ -26,7 +26,7 @@ Timezone: `America/Denver`
 
 ## Normalization
 
-Normalizer: `analysis/normalize_hvac_history.py`
+Normalizer: `calibration/analysis/normalize_hvac_history.py`
 
 Normalizer version: `1.0.1`
 
@@ -42,11 +42,11 @@ The normalization process:
 
 ## Analyzer
 
-Reference analyzer: `analysis/analyze_hvac_baseline.py`
+Reference analyzer: `calibration/analysis/analyze_hvac_baseline.py`
 
 Analysis methodology version: `1.2.0`
 
-Methodology addendum: `validation/methodology/HVAC_ANALYZER_1.2.0.md`
+Methodology addendum: `calibration/validation/methodology/HVAC_ANALYZER_1.2.0.md`
 
 Validated analyzer commit: `9c08e095693ffc922ab97ff524e309257c3cc172`
 
@@ -75,6 +75,6 @@ Analyzer 1.2.0 explicitly separates whole-window directional statistics from `di
 
 The normalized datasets are immutable comparison evidence.
 
-The formal paired-night interpretation is stored under `validation/reports/` and must preserve analyzer context names when reporting thermal statistics.
+The formal paired-night interpretation is stored under `calibration/validation/reports/` and must preserve analyzer context names when reporting thermal statistics.
 
 No Home Assistant configuration or HVAC controller parameter was changed while creating these datasets.

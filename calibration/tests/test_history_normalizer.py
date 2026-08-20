@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from analysis.normalize_hvac_history import (
+from calibration.analysis.normalize_hvac_history import (
     CLIMATE_ENTITY,
     REQUIRED_STATE_ENTITIES,
     flatten_history,

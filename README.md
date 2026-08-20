@@ -1362,8 +1362,8 @@ rather than dashboard inspection alone.
 
 Documentation:
 
-- [HVAC calibration methodology](docs/HVAC_CALIBRATION_METHODOLOGY.md)
-- [August 12-18, 2026 quantitative baseline](data/field-history/2026-08-12_to_2026-08-18/analysis-summary.md)
+- [HVAC calibration methodology](validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md)
+- [August 12-18, 2026 quantitative baseline](validation/field-history/2026-08-12_to_2026-08-18/analysis-summary.md)
 
 The methodology covers production history acquisition, one-minute history
 reconstruction, directional thermal error, error distributions, actuator
@@ -1382,6 +1382,6 @@ implementation:
 
 Example:
 
-    py -3 analysis\analyze_hvac_baseline.py data\field-history\2026-08-12_to_2026-08-18
+    py -3 analysis\analyze_hvac_baseline.py validation\field-history\2026-08-12_to_2026-08-18
 
 Use `--format json` for machine-readable results.

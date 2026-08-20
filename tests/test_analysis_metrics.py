@@ -13,7 +13,12 @@ from analysis.booster_activity_metrics import booster_activity_metrics
 
 ROOT = Path(__file__).resolve().parents[1]
 ANALYZER = ROOT / "analysis" / "analyze_hvac_baseline.py"
-BASELINE = ROOT / "data" / "field-history" / "2026-08-12_to_2026-08-18"
+BASELINE = (
+    ROOT
+    / "validation"
+    / "field-history"
+    / "2026-08-12_to_2026-08-18"
+)
 
 
 def test_effective_percentage_drives_runtime_not_logical_fan_state() -> None:

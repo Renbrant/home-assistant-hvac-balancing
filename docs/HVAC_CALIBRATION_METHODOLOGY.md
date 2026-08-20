@@ -285,6 +285,18 @@ For each room reconstruct effective booster command over time.
 Measure:
 
 - average effective command;
+- active runtime percentage and hours;
+- active runtime percentage while HVAC is actively heating or cooling;
+- average effective command during HVAC-active time;
+- average effective command while the booster is active;
+- number of active episodes;
+- median, P90, and longest active-episode duration;
+- effective-command change count;
+- speed-to-speed modulation count while remaining active;
+- HVAC-scoped active modulations per HVAC-active hour;
+- median time between active modulations over the full monitored window;
+- equivalent full-speed hours;
+- equivalent full-speed hours during HVAC-active time;
 - time at or above 80%;
 - time at 100%;
 - time at or above 80% while directional error remains at least 2°F.
@@ -577,6 +589,11 @@ Compare:
 - time above 2.0°F;
 - time above 3.0°F;
 - average booster command;
+- active booster runtime;
+- active-episode count and duration;
+- active speed-modulation count;
+- HVAC-scoped active modulations per HVAC-active hour;
+- equivalent full-speed hours;
 - booster time >=80%;
 - booster time at 100%;
 - high-command/high-error saturation;
@@ -634,7 +651,7 @@ The quantitative methodology has an official versioned implementation:
 
 `analysis/analyze_hvac_baseline.py`
 
-Current analysis methodology version: `1.0.0`.
+Current analysis methodology version: `1.1.0`.
 
 The analyzer uses only Python standard-library modules and operates on the
 normalized field-history datasets stored under `data/field-history`.
@@ -647,11 +664,126 @@ Machine-readable results are available with:
 
     --format json
 
-The August 12-18, 2026 baseline acts as the regression reference for version
-1.0.0. Changes to the analyzer must continue reproducing the reference metrics
-unless the methodology version is intentionally changed and the historical
-baseline is explicitly recalculated.
+The August 12-18, 2026 baseline remains the regression reference. Version 1.1.0
+adds booster activity and modulation metrics without changing the established
+version 1.0.0 thermal, saturation, response, Adaptive I, or central-assist
+metrics.
 
-For the 20-minute Base P and PI Target response analysis, version 1.0.0 checks
-controller level at minutes 0, 5, 10, 15 and 20. This preserves the original
-baseline selection rule and makes future before/after datasets comparable.
+For the 20-minute Base P and PI Target response analysis, version 1.1.0 retains
+the version 1.0.0 rule of checking controller level at minutes 0, 5, 10, 15 and
+20. This preserves the original baseline selection rule and keeps before/after
+datasets comparable.
+
+---
+
+## 25. Booster activity and modulation metrics (analysis methodology 1.1.0)
+
+Version 1.1.0 adds time-weighted booster activity, episode, workload, and
+modulation metrics while preserving all established version 1.0.0 outputs.
+
+### Authoritative activity definition
+
+Booster activity is defined strictly as:
+
+```text
+effective_percentage > 0
+```
+
+The logical Home Assistant `fan.*` state is not authoritative for calibration
+runtime because a fan entity may remain logically `on` while effective
+percentage is zero or stale.
+
+### Active runtime
+
+For every room report:
+
+- `active_runtime_pct` - percentage of reconstructed samples with effective
+  percentage greater than zero;
+- `active_runtime_hours` - corresponding reconstructed active hours;
+- `active_runtime_hvac_pct` - percentage of HVAC-active samples where the
+  booster effective percentage is greater than zero.
+
+### Command level
+
+Report:
+
+- `average_effective_pct_hvac` - average effective command across HVAC-active
+  samples, including zero command;
+- `average_pct_while_active` - average effective command only while the booster
+  is active.
+
+### Active episodes
+
+An active episode begins on a reconstructed transition from zero to a positive
+effective percentage and ends when effective percentage returns to zero.
+
+Report:
+
+- `active_episodes`;
+- `median_active_episode_minutes`;
+- `p90_active_episode_minutes`;
+- `longest_active_episode_minutes`.
+
+Episode duration is approximate to the one-minute reconstruction resolution.
+
+### Command changes and active modulation
+
+A command change is any change in reconstructed effective percentage.
+
+An active modulation is specifically:
+
+```text
+previous effective percentage > 0
+AND
+new effective percentage > 0
+AND
+new percentage != previous percentage
+```
+
+ON/OFF transitions are therefore not active modulations. This distinction is
+required when evaluating acoustic busyness: more separate ON/OFF episodes do
+not imply more speed-to-speed modulation while a booster is already running.
+
+`active_modulation_changes` counts positive-to-positive changes over the full
+monitored window.
+
+`active_modulation_changes_per_hvac_hour` uses a stricter HVAC-scoped numerator:
+only positive-to-positive changes whose new reconstructed sample occurs while
+`hvac_action` is `cooling` or `heating` are counted, then divided by total
+HVAC-active hours in that window.
+
+This definition intentionally differs from the temporary paired-night script
+that counted whole-window modulations and divided by HVAC-active hours. The
+version 1.1.0 definition removes that numerator/denominator ambiguity.
+
+`median_minutes_between_active_modulations` is explicitly a whole-window cadence
+metric based on all active-modulation timestamps. It must not be described as an
+HVAC-only interval metric.
+
+### Equivalent full-speed hours
+
+Equivalent full-speed hours are a command/workload proxy:
+
+```text
+sum(effective_percentage / 100 * sample_duration_hours)
+```
+
+Report both:
+
+- `equivalent_full_speed_hours` over the full monitored window;
+- `equivalent_full_speed_hours_hvac` during HVAC-active samples only.
+
+Equivalent full-speed hours are not measured electrical energy. Energy claims
+require actual power/energy data and comparable system load.
+
+### Interpretation
+
+Duty cycle, episode cadence, and speed modulation answer different questions:
+
+- duty cycle measures how much time the booster is doing work;
+- episode count/duration measures ON/OFF cadence;
+- active modulation measures speed changes while already running;
+- equivalent full-speed hours estimates commanded airflow workload.
+
+These metrics should be evaluated together rather than using a single activity
+number as a proxy for comfort, noise, or energy.

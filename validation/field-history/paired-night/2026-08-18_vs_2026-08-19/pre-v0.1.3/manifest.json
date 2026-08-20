@@ -1,0 +1,95 @@
+{
+  "collection_method": "Home Assistant REST History API",
+  "counts": {
+    "adaptive_rows": 19,
+    "climate_rows": 25,
+    "states_rows": 542,
+    "tracked_rows_after_dedup": 783,
+    "window_rows": 567
+  },
+  "dataset_label": "PRE-v0.1.3",
+  "entity_row_counts": {
+    "climate.kitchen": 25,
+    "sensor.bed_1_booster_adaptive_boost": 5,
+    "sensor.bed_1_booster_effective_percentage": 25,
+    "sensor.bed_1_booster_pi_target_speed": 25,
+    "sensor.bed_1_booster_target_speed": 21,
+    "sensor.bed_1_temp_temperature": 29,
+    "sensor.bed_1_temperature_delta": 61,
+    "sensor.bed_2_booster_adaptive_boost": 7,
+    "sensor.bed_2_booster_effective_percentage": 29,
+    "sensor.bed_2_booster_pi_target_speed": 29,
+    "sensor.bed_2_booster_target_speed": 23,
+    "sensor.bed_2_temp_temperature": 29,
+    "sensor.bed_2_temperature_delta": 61,
+    "sensor.bed_3_booster_adaptive_boost": 7,
+    "sensor.bed_3_booster_effective_percentage": 23,
+    "sensor.bed_3_booster_pi_target_speed": 23,
+    "sensor.bed_3_booster_target_speed": 18,
+    "sensor.bed_3_temp_temperature": 31,
+    "sensor.bed_3_temperature_delta": 63,
+    "sensor.kitchen_temp_temperature": 33
+  },
+  "github_issue": 6,
+  "home_assistant": {
+    "time_zone": "America/Denver",
+    "version": "2026.8.2"
+  },
+  "normalized_files": {
+    "normalized/adaptive-controller.csv": {
+      "sha256": "396BA3E7E1F762AA29B151E9900F5C6BCE8C7396DC76E3D69D09C4C1D1401682",
+      "size_bytes": 2432
+    },
+    "normalized/climate.csv": {
+      "sha256": "04F0CF95BD67A28DC1AA22A61FB9E52D8A6AFDE2016E5D665F00644273788810",
+      "size_bytes": 1462
+    },
+    "normalized/states.csv": {
+      "sha256": "7AC57930A655A9B856E62B0FA768050CA46483C9091C91CABF2CDFA0821D1DF9",
+      "size_bytes": 37074
+    }
+  },
+  "normalizer": {
+    "duplicate_identical_history_records_removed": true,
+    "raw_api_responses_committed": false,
+    "seed_timestamp_clamped_to_window_start": true,
+    "start_state_seeded_from_latest_known_state": true,
+    "version": "1.0.1"
+  },
+  "project": "Home Assistant HVAC Balancing",
+  "purpose": "Matched paired-night field validation",
+  "raw_source": {
+    "filename": "pre.json",
+    "sha256": "D18AE992F9E88FCE3E75B075B5E1983799B60655367753E8A21F4E67A68B7A9E",
+    "size_bytes": 219458
+  },
+  "validation": {
+    "required_start_seeds_present": true,
+    "seeded_entities": [
+      "climate.kitchen",
+      "sensor.bed_1_booster_adaptive_boost",
+      "sensor.bed_1_booster_effective_percentage",
+      "sensor.bed_1_booster_pi_target_speed",
+      "sensor.bed_1_booster_target_speed",
+      "sensor.bed_1_temp_temperature",
+      "sensor.bed_1_temperature_delta",
+      "sensor.bed_2_booster_adaptive_boost",
+      "sensor.bed_2_booster_effective_percentage",
+      "sensor.bed_2_booster_pi_target_speed",
+      "sensor.bed_2_booster_target_speed",
+      "sensor.bed_2_temp_temperature",
+      "sensor.bed_2_temperature_delta",
+      "sensor.bed_3_booster_adaptive_boost",
+      "sensor.bed_3_booster_effective_percentage",
+      "sensor.bed_3_booster_pi_target_speed",
+      "sensor.bed_3_booster_target_speed",
+      "sensor.bed_3_temp_temperature",
+      "sensor.bed_3_temperature_delta",
+      "sensor.kitchen_temp_temperature"
+    ]
+  },
+  "window": {
+    "end_utc": "2026-08-19T15:30:00Z",
+    "start_utc": "2026-08-19T05:00:00Z"
+  }
+}

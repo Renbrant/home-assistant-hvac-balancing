@@ -2,10 +2,10 @@
 """Reproducible HVAC field-history analyzer.
 
 Implements the quantitative methodology documented in
-``validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md``.
+``calibration/validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md``.
 
 The analyzer uses only the Python standard library and operates on normalized
-field-history datasets stored under ``validation/field-history``.
+field-history datasets stored under ``calibration/validation/field-history``.
 
 Analysis methodology version: 1.2.0
 """

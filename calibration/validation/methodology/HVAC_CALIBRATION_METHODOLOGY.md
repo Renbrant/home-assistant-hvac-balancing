@@ -97,7 +97,7 @@ through
 The dataset is stored under:
 
 ```text
-validation/field-history/2026-08-12_to_2026-08-18/
+calibration/validation/field-history/2026-08-12_to_2026-08-18/
 ```
 
 Historical source data should not be modified because a later analysis produces
@@ -629,7 +629,7 @@ The first formal quantitative execution covers August 12-18, 2026.
 Its results are documented in:
 
 ```text
-validation/field-history/2026-08-12_to_2026-08-18/analysis-summary.md
+calibration/validation/field-history/2026-08-12_to_2026-08-18/analysis-summary.md
 ```
 
 No production tuning change is recommended from the first pass alone.
@@ -649,16 +649,16 @@ No production tuning change is recommended from the first pass alone.
 
 The quantitative methodology has an official versioned implementation:
 
-`analysis/analyze_hvac_baseline.py`
+`calibration/analysis/analyze_hvac_baseline.py`
 
 Current analysis methodology version: `1.1.0`.
 
 The analyzer uses only Python standard-library modules and operates on the
-normalized field-history datasets stored under `validation/field-history`.
+normalized field-history datasets stored under `calibration/validation/field-history`.
 
 Example execution:
 
-    py -3 analysis\analyze_hvac_baseline.py validation\field-history\2026-08-12_to_2026-08-18
+    py -3 calibration\analysis\analyze_hvac_baseline.py calibration\validation\field-history\2026-08-12_to_2026-08-18
 
 Machine-readable results are available with:
 

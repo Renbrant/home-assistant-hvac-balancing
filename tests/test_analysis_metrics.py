@@ -53,6 +53,27 @@ def test_effective_percentage_drives_runtime_not_logical_fan_state() -> None:
     assert result["equivalent_full_speed_hours_hvac"] == 0.01
 
 
+def test_hvac_modulation_rate_excludes_idle_modulations() -> None:
+    start = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    values = [20, 40, 60, 80, 100, 80]
+    actions = ["cooling", "cooling", "idle", "idle", "cooling", "cooling"]
+
+    series = [
+        {
+            "time": start + timedelta(minutes=index),
+            "hvac_action": actions[index],
+            "bed_1_fan": values[index],
+        }
+        for index in range(len(values))
+    ]
+
+    result = booster_activity_metrics(series, "bed_1")
+
+    assert result["active_modulation_changes"] == 5
+    assert result["active_modulation_changes_per_hvac_hour"] == 45.0
+    assert result["median_minutes_between_active_modulations"] == 1.0
+
+
 def test_logical_on_with_zero_percentage_has_zero_runtime() -> None:
     start = datetime(2026, 8, 20, tzinfo=timezone.utc)
 

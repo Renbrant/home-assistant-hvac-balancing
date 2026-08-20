@@ -1,3 +1,10 @@
+# CURRENT STATUS - PRODUCTION CUTOVER COMPLETE
+
+> v0.2.0-beta.9 is active in Production.
+> The virtual Test Bench remains the regression and development environment.
+
+---
+
 # HVAC Balancing Development Environment
 
 This directory contains development-only Home Assistant infrastructure for

@@ -117,15 +117,22 @@ def test_normalize_seeds_window_and_writes_analyzer_contract(tmp_path: Path) -> 
         ha_version="2026.8.2",
     )
 
-    assert manifest["normalizer"]["version"] == "1.0.0"
+    assert manifest["normalizer"]["version"] == "1.0.1"
     assert manifest["validation"]["required_start_seeds_present"] is True
     assert manifest["raw_source"]["filename"] == "pre.json"
     assert len(manifest["raw_source"]["sha256"]) == 64
+    assert manifest["counts"]["tracked_rows_after_dedup"] == 32
+    assert manifest["counts"]["window_rows"] == 32
+    assert manifest["counts"]["states_rows"] == 30
+    assert manifest["counts"]["climate_rows"] == 2
+    assert manifest["counts"]["adaptive_rows"] == 6
 
     with (output_dir / "normalized" / "states.csv").open(
         encoding="utf-8", newline=""
     ) as handle:
         states = list(csv.DictReader(handle))
+
+    assert len(states) == manifest["counts"]["states_rows"]
 
     bed_delta = [
         row
@@ -147,6 +154,7 @@ def test_normalize_seeds_window_and_writes_analyzer_contract(tmp_path: Path) -> 
     ) as handle:
         climate = list(csv.DictReader(handle))
 
+    assert len(climate) == manifest["counts"]["climate_rows"]
     assert climate[0]["timestamp_utc"] == "2026-08-19T05:00:00Z"
     assert climate[0]["hvac_mode"] == "cool"
     assert climate[0]["hvac_action"] == "idle"
@@ -159,6 +167,8 @@ def test_normalize_seeds_window_and_writes_analyzer_contract(tmp_path: Path) -> 
         encoding="utf-8", newline=""
     ) as handle:
         adaptive = list(csv.DictReader(handle))
+
+    assert len(adaptive) == manifest["counts"]["adaptive_rows"]
 
     bed_1_adaptive = [
         row

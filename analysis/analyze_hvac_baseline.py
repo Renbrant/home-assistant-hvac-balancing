@@ -7,7 +7,7 @@ Implements the quantitative methodology documented in
 The analyzer uses only the Python standard library and operates on normalized
 field-history datasets stored under ``validation/field-history``.
 
-Analysis methodology version: 1.1.0
+Analysis methodology version: 1.2.0
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from typing import Any, Iterable
 
 from booster_activity_metrics import booster_activity_metrics
 
-ANALYSIS_VERSION = "1.1.0"
+ANALYSIS_VERSION = "1.2.0"
 RESOLUTION_MINUTES = 1
 RESPONSE_START_STEP_MINUTES = 5
 RESPONSE_HORIZON_MINUTES = 20
@@ -569,6 +569,15 @@ def analyze_bed(
         and row[prefix + "_fan"] > 0
     ]
 
+    active_errors = [
+        row[prefix + "_error"]
+        for row in active
+    ]
+    active_abs_deltas = [
+        row[prefix + "_abs_delta"]
+        for row in active
+    ]
+
     fan_values = [
         row[prefix + "_fan"]
         for row in records
@@ -618,6 +627,19 @@ def analyze_bed(
             "p90": rounded(percentile(errors, 0.90), 2),
             "maximum": rounded(max(errors) if errors else None, 2),
             "mean_absolute_room_delta": rounded(mean(abs_deltas), 2),
+        },
+        "directional_hvac_active": {
+            "mean": rounded(mean(active_errors), 2),
+            "median": rounded(median(active_errors), 2),
+            "p90": rounded(percentile(active_errors, 0.90), 2),
+            "maximum": rounded(
+                max(active_errors) if active_errors else None,
+                2,
+            ),
+            "mean_absolute_room_delta": rounded(
+                mean(active_abs_deltas),
+                2,
+            ),
         },
         "bands": {
             "all_time": error_bands(errors),

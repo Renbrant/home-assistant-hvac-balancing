@@ -1,4 +1,4 @@
-"""Regression tests for field-history analysis methodology v1.1.0."""
+"""Regression tests for field-history analysis methodology v1.2.0."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def test_logical_on_with_zero_percentage_has_zero_runtime() -> None:
     assert result["equivalent_full_speed_hours"] == 0.0
 
 
-def test_integrated_analyzer_exposes_v1_1_metrics_under_booster() -> None:
+def test_integrated_analyzer_exposes_v1_2_metrics_and_contexts() -> None:
     completed = subprocess.run(
         [
             sys.executable,
@@ -118,7 +118,7 @@ def test_integrated_analyzer_exposes_v1_1_metrics_under_booster() -> None:
     )
     result = json.loads(completed.stdout)
 
-    assert result["analysis_version"] == "1.1.0"
+    assert result["analysis_version"] == "1.2.0"
     assert result["method"]["booster_active_definition"] == (
         "effective_percentage > 0"
     )
@@ -148,3 +148,17 @@ def test_integrated_analyzer_exposes_v1_1_metrics_under_booster() -> None:
         bed_result = result["beds"][bed_name]
         for metric in required:
             assert metric not in bed_result
+
+        hvac_directional = bed_result["directional_hvac_active"]
+        assert set(hvac_directional) == {
+            "mean",
+            "median",
+            "p90",
+            "maximum",
+            "mean_absolute_room_delta",
+        }
+        assert hvac_directional["mean"] is not None
+        assert hvac_directional["median"] is not None
+        assert hvac_directional["p90"] is not None
+        assert hvac_directional["maximum"] is not None
+        assert hvac_directional["mean_absolute_room_delta"] is not None

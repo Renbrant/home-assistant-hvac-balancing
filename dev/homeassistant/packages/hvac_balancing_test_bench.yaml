@@ -1,0 +1,1167 @@
+# ============================================================================
+# HVAC Balancing - Virtual HVAC Test Bench
+# Development-only Home Assistant package
+#
+# IMPORTANT:
+#   This package is NOT part of the distributable HACS integration.
+#   It exists only to provide deterministic virtual equipment in ha-dev.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Adjustable temperatures
+# ----------------------------------------------------------------------------
+
+input_number:
+
+  hvac_test_thermostat_temperature:
+    name: HVAC Test Thermostat Temperature
+    icon: mdi:home-thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 75
+    unit_of_measurement: "°F"
+
+  hvac_test_kitchen_temperature:
+    name: HVAC Test Kitchen Temperature
+    icon: mdi:thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 75
+    unit_of_measurement: "°F"
+
+  hvac_test_bed_1_temperature:
+    name: HVAC Test Bed 1 Temperature
+    icon: mdi:thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 75.2
+    unit_of_measurement: "°F"
+
+  hvac_test_bed_2_temperature:
+    name: HVAC Test Bed 2 Temperature
+    icon: mdi:thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 75.4
+    unit_of_measurement: "°F"
+
+  hvac_test_bed_3_temperature:
+    name: HVAC Test Bed 3 Temperature
+    icon: mdi:thermometer
+    min: 55
+    max: 90
+    step: 0.1
+    mode: slider
+    initial: 74.9
+    unit_of_measurement: "°F"
+
+# ----------------------------------------------------------------------------
+# Virtual booster speed storage
+#
+# Physical booster control surface:
+#
+#   Speed 0  = OFF
+#   Speed 1  = minimum airflow
+#   ...
+#   Speed 10 = maximum airflow
+#
+# Home Assistant fan entities expose speed as percentage, so the template fans
+# translate physical Speed 1-10 into HA percentages 10-100%.
+# ----------------------------------------------------------------------------
+
+  hvac_test_bed_1_booster_speed:
+    name: HVAC Test Bed 1 Booster Speed
+    icon: mdi:fan
+    min: 0
+    max: 10
+    step: 1
+    mode: slider
+    initial: 0
+
+  hvac_test_bed_2_booster_speed:
+    name: HVAC Test Bed 2 Booster Speed
+    icon: mdi:fan
+    min: 0
+    max: 10
+    step: 1
+    mode: slider
+    initial: 0
+
+  hvac_test_bed_3_booster_speed:
+    name: HVAC Test Bed 3 Booster Speed
+    icon: mdi:fan
+    min: 0
+    max: 10
+    step: 1
+    mode: slider
+    initial: 0
+
+# ----------------------------------------------------------------------------
+# Guided validation status
+#
+# Scenario scripts update these helpers so screenshots show exactly which
+# validation step is active and what result is expected.
+# ----------------------------------------------------------------------------
+
+input_text:
+
+  hvac_test_active_validation_scenario:
+    name: HVAC Test Active Validation Scenario
+    icon: mdi:flask-outline
+    max: 120
+    initial: Manual / None
+
+  hvac_test_expected_validation_result:
+    name: HVAC Test Expected Validation Result
+    icon: mdi:check-decagram-outline
+    max: 255
+    initial: Select a guided validation scenario.
+
+# ----------------------------------------------------------------------------
+# Availability and internal state
+#
+# Availability toggles allow deterministic fault injection.
+# ----------------------------------------------------------------------------
+
+input_boolean:
+
+  hvac_test_thermostat_sensor_available:
+    name: HVAC Test Thermostat Sensor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_kitchen_sensor_available:
+    name: HVAC Test Kitchen Sensor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_bed_1_sensor_available:
+    name: HVAC Test Bed 1 Sensor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_bed_2_sensor_available:
+    name: HVAC Test Bed 2 Sensor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_bed_3_sensor_available:
+    name: HVAC Test Bed 3 Sensor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_ac_compressor_available:
+    name: HVAC Test AC Compressor Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_ac_compressor_state:
+    name: HVAC Test AC Compressor Internal State
+    initial: false
+
+  hvac_test_bed_1_booster_available:
+    name: HVAC Test Bed 1 Booster Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_bed_2_booster_available:
+    name: HVAC Test Bed 2 Booster Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_bed_3_booster_available:
+    name: HVAC Test Bed 3 Booster Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_central_blower_available:
+    name: HVAC Test Central Blower Available
+    initial: true
+    icon: mdi:check-network
+
+  hvac_test_central_blower_state:
+    name: HVAC Test Central Blower Internal State
+    initial: false
+
+# ----------------------------------------------------------------------------
+# Virtual booster preset storage
+#
+# These names mirror the modes exposed by the real booster hardware.
+# ----------------------------------------------------------------------------
+
+input_select:
+
+  hvac_test_bed_1_booster_preset:
+    name: HVAC Test Bed 1 Booster Preset
+    options:
+      - FAN
+      - COOL
+      - HEAT
+      - SLEEP
+    initial: FAN
+
+  hvac_test_bed_2_booster_preset:
+    name: HVAC Test Bed 2 Booster Preset
+    options:
+      - FAN
+      - COOL
+      - HEAT
+      - SLEEP
+    initial: FAN
+
+  hvac_test_bed_3_booster_preset:
+    name: HVAC Test Bed 3 Booster Preset
+    options:
+      - FAN
+      - COOL
+      - HEAT
+      - SLEEP
+    initial: FAN
+
+# ----------------------------------------------------------------------------
+# Native Home Assistant virtual entities
+# ----------------------------------------------------------------------------
+
+template:
+
+  # --------------------------------------------------------------------------
+  # Temperature sensors
+  # --------------------------------------------------------------------------
+
+  - sensor:
+
+      - name: HVAC Test Thermostat Temperature
+        default_entity_id: sensor.hvac_test_thermostat_temperature
+        unique_id: hvac_test_thermostat_temperature_sensor
+        icon: mdi:home-thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_thermostat_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_thermostat_temperature') | float(0) }}
+
+      - name: HVAC Test Kitchen Temperature
+        default_entity_id: sensor.hvac_test_kitchen_temperature
+        unique_id: hvac_test_kitchen_temperature_sensor
+        icon: mdi:thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_kitchen_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_kitchen_temperature') | float(0) }}
+
+      - name: HVAC Test Bed 1 Temperature
+        default_entity_id: sensor.hvac_test_bed_1_temperature
+        unique_id: hvac_test_bed_1_temperature_sensor
+        icon: mdi:thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_1_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_bed_1_temperature') | float(0) }}
+
+      - name: HVAC Test Bed 2 Temperature
+        default_entity_id: sensor.hvac_test_bed_2_temperature
+        unique_id: hvac_test_bed_2_temperature_sensor
+        icon: mdi:thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_2_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_bed_2_temperature') | float(0) }}
+
+      - name: HVAC Test Bed 3 Temperature
+        default_entity_id: sensor.hvac_test_bed_3_temperature
+        unique_id: hvac_test_bed_3_temperature_sensor
+        icon: mdi:thermometer
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°F"
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_3_sensor_available', 'on') }}
+        state: >
+          {{ states('input_number.hvac_test_bed_3_temperature') | float(0) }}
+
+  # --------------------------------------------------------------------------
+  # Virtual AC compressor
+  #
+  # Generic Thermostat sees this as a normal switch.
+  # --------------------------------------------------------------------------
+
+  - switch:
+
+      - name: HVAC Test AC Compressor
+        default_entity_id: switch.hvac_test_ac_compressor
+        unique_id: hvac_test_ac_compressor
+        icon: mdi:air-conditioner
+        availability: >
+          {{ is_state('input_boolean.hvac_test_ac_compressor_available', 'on') }}
+        state: >
+          {{ is_state('input_boolean.hvac_test_ac_compressor_state', 'on') }}
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.hvac_test_ac_compressor_state
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.hvac_test_ac_compressor_state
+
+  # --------------------------------------------------------------------------
+  # Virtual booster fans
+  # --------------------------------------------------------------------------
+
+  - fan:
+
+      - name: HVAC Test Bed 1 Booster
+        default_entity_id: fan.hvac_test_bed_1_booster
+        unique_id: hvac_test_bed_1_booster
+        icon: mdi:fan
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_1_booster_available', 'on') }}
+        state: >
+          {{
+            states('input_number.hvac_test_bed_1_booster_speed')
+            | int(0) > 0
+          }}
+        speed_count: 10
+        percentage: >
+          {{
+            (
+              states('input_number.hvac_test_bed_1_booster_speed')
+              | int(0)
+            ) * 10
+          }}
+        turn_on:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_1_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_1_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
+        turn_off:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_1_booster_speed
+            data:
+              value: 0
+        set_percentage:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_1_booster_speed
+            data:
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
+        preset_modes:
+          - FAN
+          - COOL
+          - HEAT
+          - SLEEP
+        preset_mode: >
+          {{ states('input_select.hvac_test_bed_1_booster_preset') }}
+        set_preset_mode:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.hvac_test_bed_1_booster_preset
+            data:
+              option: "{{ preset_mode }}"
+
+      - name: HVAC Test Bed 2 Booster
+        default_entity_id: fan.hvac_test_bed_2_booster
+        unique_id: hvac_test_bed_2_booster
+        icon: mdi:fan
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_2_booster_available', 'on') }}
+        state: >
+          {{
+            states('input_number.hvac_test_bed_2_booster_speed')
+            | int(0) > 0
+          }}
+        speed_count: 10
+        percentage: >
+          {{
+            (
+              states('input_number.hvac_test_bed_2_booster_speed')
+              | int(0)
+            ) * 10
+          }}
+        turn_on:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_2_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_2_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
+        turn_off:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_2_booster_speed
+            data:
+              value: 0
+        set_percentage:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_2_booster_speed
+            data:
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
+        preset_modes:
+          - FAN
+          - COOL
+          - HEAT
+          - SLEEP
+        preset_mode: >
+          {{ states('input_select.hvac_test_bed_2_booster_preset') }}
+        set_preset_mode:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.hvac_test_bed_2_booster_preset
+            data:
+              option: "{{ preset_mode }}"
+
+      - name: HVAC Test Bed 3 Booster
+        default_entity_id: fan.hvac_test_bed_3_booster
+        unique_id: hvac_test_bed_3_booster
+        icon: mdi:fan
+        availability: >
+          {{ is_state('input_boolean.hvac_test_bed_3_booster_available', 'on') }}
+        state: >
+          {{
+            states('input_number.hvac_test_bed_3_booster_speed')
+            | int(0) > 0
+          }}
+        speed_count: 10
+        percentage: >
+          {{
+            (
+              states('input_number.hvac_test_bed_3_booster_speed')
+              | int(0)
+            ) * 10
+          }}
+        turn_on:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_3_booster_speed
+            data:
+              value: >
+                {% set current =
+                  states('input_number.hvac_test_bed_3_booster_speed')
+                  | int(0)
+                %}
+                {{ current if current > 0 else 2 }}
+        turn_off:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_3_booster_speed
+            data:
+              value: 0
+        set_percentage:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.hvac_test_bed_3_booster_speed
+            data:
+              value: >
+                {% set requested =
+                  ((percentage | int(0)) / 10)
+                  | round(0)
+                  | int
+                %}
+                {{ [[requested, 0] | max, 10] | min }}
+        preset_modes:
+          - FAN
+          - COOL
+          - HEAT
+          - SLEEP
+        preset_mode: >
+          {{ states('input_select.hvac_test_bed_3_booster_preset') }}
+        set_preset_mode:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.hvac_test_bed_3_booster_preset
+            data:
+              option: "{{ preset_mode }}"
+
+      - name: HVAC Test Central Blower
+        default_entity_id: fan.hvac_test_central_blower
+        unique_id: hvac_test_central_blower
+        icon: mdi:fan-chevron-up
+        availability: >
+          {{ is_state('input_boolean.hvac_test_central_blower_available', 'on') }}
+        state: >
+          {{ is_state('input_boolean.hvac_test_central_blower_state', 'on') }}
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.hvac_test_central_blower_state
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.hvac_test_central_blower_state
+
+# ----------------------------------------------------------------------------
+# Virtual central HVAC
+#
+# With ac_mode=true:
+#
+#   climate mode = cool
+#   compressor ON  -> hvac_action = cooling
+#   compressor OFF -> hvac_action = idle
+#
+# Changing temperatures around the target therefore allows deterministic
+# testing of cooling -> idle -> cooling without changing HVAC mode.
+# ----------------------------------------------------------------------------
+
+climate:
+
+  - platform: generic_thermostat
+    name: HVAC Test Thermostat
+    unique_id: hvac_test_thermostat
+    heater: switch.hvac_test_ac_compressor
+    target_sensor: sensor.hvac_test_thermostat_temperature
+    ac_mode: true
+    min_temp: 60
+    max_temp: 85
+    target_temp: 75
+    cold_tolerance: 0.2
+    hot_tolerance: 0.2
+    initial_hvac_mode: "cool"
+    precision: 0.1
+
+# ----------------------------------------------------------------------------
+# Repeatable manual test scenarios
+#
+# These scenarios change INPUTS only.
+# They never represent production HVAC control logic.
+# ----------------------------------------------------------------------------
+
+script:
+
+  hvac_test_restore_availability:
+    alias: HVAC Test - Restore All Availability
+    mode: restart
+    sequence:
+
+      - action: input_boolean.turn_on
+        target:
+          entity_id:
+            - input_boolean.hvac_test_thermostat_sensor_available
+            - input_boolean.hvac_test_kitchen_sensor_available
+            - input_boolean.hvac_test_bed_1_sensor_available
+            - input_boolean.hvac_test_bed_2_sensor_available
+            - input_boolean.hvac_test_bed_3_sensor_available
+            - input_boolean.hvac_test_ac_compressor_available
+            - input_boolean.hvac_test_bed_1_booster_available
+            - input_boolean.hvac_test_bed_2_booster_available
+            - input_boolean.hvac_test_bed_3_booster_available
+            - input_boolean.hvac_test_central_blower_available
+
+  hvac_test_reset_virtual_boosters:
+    alias: HVAC Test - Reset Virtual Boosters
+    mode: restart
+    sequence:
+
+      # Normal scenario preparation resets only zone boosters.
+      # Central Assist is intentionally left untouched so its ownership,
+      # reconciliation, and delayed shutdown behavior can be tested.
+      - action: fan.turn_off
+        target:
+          entity_id:
+            - fan.hvac_test_bed_1_booster
+            - fan.hvac_test_bed_2_booster
+            - fan.hvac_test_bed_3_booster
+
+  hvac_test_force_reset_all_actuators:
+    alias: HVAC Test - Force Reset All Actuators
+    mode: restart
+    sequence:
+
+      # Explicit fault/drift helper. Unlike normal scenario preparation,
+      # this intentionally interferes with every virtual actuator.
+      - action: script.hvac_test_reset_virtual_boosters
+
+      - action: fan.turn_off
+        target:
+          entity_id: fan.hvac_test_central_blower
+
+  hvac_test_scenario_balanced:
+    alias: HVAC Test Scenario - Balanced House
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75.2
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 75.4
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 74.9
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 75
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+  hvac_test_scenario_mild_bed_2:
+    alias: HVAC Test Scenario - Mild Bed 2 Imbalance
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75.3
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.6
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75.1
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 75
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+  hvac_test_scenario_severe_upstairs:
+    alias: HVAC Test Scenario - Severe Upstairs Heat
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 74
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 77
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 79
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 78
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 74
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+  hvac_test_scenario_adaptive_i:
+    alias: HVAC Test Scenario - Adaptive I Persistent Error
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 78
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 75
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+  hvac_test_scenario_bed_2_sensor_failure:
+    alias: HVAC Test Scenario - Bed 2 Sensor Failure
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_scenario_mild_bed_2
+
+      - delay:
+          milliseconds: 250
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hvac_test_bed_2_sensor_available
+
+  # --------------------------------------------------------------------------
+  # Guided validation preparation
+  #
+  # Force a true mode transition through OFF so Base P and Adaptive state can
+  # start from a deterministic controller condition.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_prepare:
+    alias: HVAC Test Validation - Prepare Fresh Controller State
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_restore_availability
+
+      - action: script.hvac_test_reset_virtual_boosters
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: "off"
+
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          temperature: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_kitchen_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75.2
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.4
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75.1
+
+      - delay:
+          milliseconds: 300
+
+  # --------------------------------------------------------------------------
+  # Guided hysteresis sequence
+  #
+  # Run these five scripts IN ORDER.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_hysteresis_1_reset:
+    alias: "Validation Hysteresis 1/5 - Reset at 76.4"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_validation_prepare
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 1/5 - Reset at 76.4F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 0. Fresh state below 1.5F rising threshold."
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+  hvac_test_validation_hysteresis_2_rise:
+    alias: "Validation Hysteresis 2/5 - Rise to 76.5"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 2/5 - Rise to 76.5F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 2. Crossing 1.5F rising threshold."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.5
+
+  hvac_test_validation_hysteresis_3_confirm:
+    alias: "Validation Hysteresis 3/5 - Confirm at 76.6"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 3/5 - Confirm at 76.6F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P remains 2."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.6
+
+  hvac_test_validation_hysteresis_4_hold:
+    alias: "Validation Hysteresis 4/5 - Hold at 76.4"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 4/5 - Return to 76.4F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P must HOLD at 2. This proves hysteresis."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.4
+
+  hvac_test_validation_hysteresis_5_release:
+    alias: "Validation Hysteresis 5/5 - Release at 76.3"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Hysteresis 5/5 - Release at 76.3F"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed 2 Base P = 0. Falling threshold reached at 1.3F."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 76.3
+
+  # --------------------------------------------------------------------------
+  # Guided Adaptive I / issue #3 sequence
+  #
+  # Scenario 1 starts a fresh 20-minute observation window.
+  # Scenarios 2 and 3 change compressor action only while HVAC mode stays cool.
+  # The Bed 2 Adaptive countdown must NOT restart.
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_adaptive_1_start:
+    alias: "Validation Adaptive 1/3 - Fresh Persistent Error"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_validation_prepare
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_1_temperature
+        data:
+          value: 75
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_2_temperature
+        data:
+          value: 78
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_bed_3_temperature
+        data:
+          value: 75
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 1/3 - Fresh persistent Bed 2 error"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 Base=8 I=0 PI=8. Bed2 starts its own 10-minute cooling episode and relative deadline."
+
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.hvac_test_thermostat
+        data:
+          hvac_mode: cool
+
+  hvac_test_validation_adaptive_2_idle:
+    alias: "Validation Adaptive 2/3 - Cooling to Idle"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 2/3 - Cooling to Idle"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "HVAC becomes Idle. Bed2 cooling exposure and Bed2 relative deadline MUST PAUSE."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 74
+
+  hvac_test_validation_adaptive_3_cooling:
+    alias: "Validation Adaptive 3/3 - Idle to Cooling"
+    mode: restart
+    sequence:
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Adaptive 3/3 - Idle to Cooling"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "HVAC returns Cooling. Bed2 exposure resumes with a new deadline from the remaining cooling time. At 10:00 total cooling the relative deadline should raise I to 1 immediately."
+
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.hvac_test_thermostat_temperature
+        data:
+          value: 76.5
+
+  # --------------------------------------------------------------------------
+  # Guided fault validation
+  # --------------------------------------------------------------------------
+
+  hvac_test_validation_sensor_failure:
+    alias: "Validation Fault - Bed 2 Sensor Failure"
+    mode: restart
+    sequence:
+
+      - action: script.hvac_test_scenario_bed_2_sensor_failure
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Fault - Bed 2 Sensor Unavailable"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 temperature unavailable; Base=0 PI=0 Effective=0%. Other zones continue."
+
+  hvac_test_validation_sensor_recovery:
+    alias: "Validation Fault - Restore Bed 2 Sensor"
+    mode: restart
+    sequence:
+
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.hvac_test_bed_2_sensor_available
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_active_validation_scenario
+        data:
+          value: "Fault Recovery - Bed 2 Sensor Restored"
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hvac_test_expected_validation_result
+        data:
+          value: "Bed2 temperature returns and controller resumes normal calculation."

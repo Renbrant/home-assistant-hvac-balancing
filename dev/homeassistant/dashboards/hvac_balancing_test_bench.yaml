@@ -1,0 +1,383 @@
+title: HVAC Balancing Test Bench
+
+views:
+
+  - title: Test Bench
+    path: test-bench
+    icon: mdi:hvac
+
+    cards:
+
+      - type: markdown
+        title: HVAC Balancing Test Bench
+        content: |
+          Development-only virtual environment for HVAC Balancing v0.2.0.
+
+          Change temperatures, HVAC state, availability, and virtual actuators
+          here without touching production Home Assistant equipment.
+
+      - type: entities
+        title: Simulation Controls - Temperatures
+        show_header_toggle: false
+        entities:
+
+          - entity: input_number.hvac_test_thermostat_temperature
+            name: Thermostat Temperature
+
+          - entity: input_number.hvac_test_kitchen_temperature
+            name: Kitchen / Reference
+
+          - entity: input_number.hvac_test_bed_1_temperature
+            name: Bed 1
+
+          - entity: input_number.hvac_test_bed_2_temperature
+            name: Bed 2
+
+          - entity: input_number.hvac_test_bed_3_temperature
+            name: Bed 3
+
+      - type: thermostat
+        entity: climate.hvac_test_thermostat
+        name: Virtual Central HVAC
+        show_current_as_primary: true
+
+      - type: entities
+        title: Virtual Temperature Sensors
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - sensor.hvac_test_thermostat_temperature
+          - sensor.hvac_test_kitchen_temperature
+          - sensor.hvac_test_bed_1_temperature
+          - sensor.hvac_test_bed_2_temperature
+          - sensor.hvac_test_bed_3_temperature
+
+      - type: entities
+        title: Temperature Sensor Fault Injection
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - entity: input_boolean.hvac_test_thermostat_sensor_available
+            name: Thermostat Sensor Available
+
+          - entity: input_boolean.hvac_test_kitchen_sensor_available
+            name: Kitchen Sensor Available
+
+          - entity: input_boolean.hvac_test_bed_1_sensor_available
+            name: Bed 1 Sensor Available
+
+          - entity: input_boolean.hvac_test_bed_2_sensor_available
+            name: Bed 2 Sensor Available
+
+          - entity: input_boolean.hvac_test_bed_3_sensor_available
+            name: Bed 3 Sensor Available
+
+      - type: entities
+        title: Virtual Central HVAC
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - entity: switch.hvac_test_ac_compressor
+            name: AC Compressor
+
+          - entity: input_boolean.hvac_test_ac_compressor_available
+            name: Compressor Available
+
+          - entity: fan.hvac_test_central_blower
+            name: Central Blower
+
+          - entity: input_boolean.hvac_test_central_blower_available
+            name: Central Blower Available
+
+      - type: entities
+        title: Virtual Booster Speed Controls
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - entity: input_number.hvac_test_bed_1_booster_speed
+            name: Bed 1 Speed - 0 to 10
+
+          - entity: input_number.hvac_test_bed_2_booster_speed
+            name: Bed 2 Speed - 0 to 10
+
+          - entity: input_number.hvac_test_bed_3_booster_speed
+            name: Bed 3 Speed - 0 to 10
+
+      - type: entities
+        title: Virtual Booster Fan Entities
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - entity: fan.hvac_test_bed_1_booster
+            name: Bed 1 Booster
+
+          - entity: fan.hvac_test_bed_2_booster
+            name: Bed 2 Booster
+
+          - entity: fan.hvac_test_bed_3_booster
+            name: Bed 3 Booster
+
+      - type: entities
+        title: Booster Fault Injection
+        show_header_toggle: false
+        state_color: true
+        entities:
+
+          - entity: input_boolean.hvac_test_bed_1_booster_available
+            name: Bed 1 Booster Available
+
+          - entity: input_boolean.hvac_test_bed_2_booster_available
+            name: Bed 2 Booster Available
+
+          - entity: input_boolean.hvac_test_bed_3_booster_available
+            name: Bed 3 Booster Available
+
+      - type: entities
+        title: Validation Status
+        show_header_toggle: false
+        entities:
+
+          - entity: input_text.hvac_test_active_validation_scenario
+            name: Active Scenario
+
+          - entity: input_text.hvac_test_expected_validation_result
+            name: Expected Result
+
+      - type: entities
+        title: Guided Validation - Hysteresis
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_hysteresis_1_reset
+
+          - script.hvac_test_validation_hysteresis_2_rise
+
+          - script.hvac_test_validation_hysteresis_3_confirm
+
+          - script.hvac_test_validation_hysteresis_4_hold
+
+          - script.hvac_test_validation_hysteresis_5_release
+
+      - type: entities
+        title: Guided Validation - Adaptive I
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_adaptive_1_start
+
+          - script.hvac_test_validation_adaptive_2_idle
+
+          - script.hvac_test_validation_adaptive_3_cooling
+
+      - type: entities
+        title: Guided Validation - Fault Handling
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_validation_sensor_failure
+
+          - script.hvac_test_validation_sensor_recovery
+
+      - type: entities
+        title: Core Test Scenarios
+        show_header_toggle: false
+        entities:
+
+          - script.hvac_test_scenario_balanced
+
+          - script.hvac_test_scenario_mild_bed_2
+
+          - script.hvac_test_scenario_severe_upstairs
+
+          - script.hvac_test_scenario_adaptive_i
+
+          - script.hvac_test_scenario_bed_2_sensor_failure
+
+          - script.hvac_test_restore_availability
+
+          - script.hvac_test_reset_virtual_boosters
+
+      - type: entities
+        title: Adaptive Episode Scheduler
+        show_header_toggle: false
+        entities:
+
+          - entity: sensor.hvac_balancing_test_current_time
+            name: Current Time
+
+          - entity: sensor.hvac_balancing_test_last_controller_update
+            name: Last Controller Update
+
+          - entity: sensor.hvac_balancing_test_last_controller_event
+            name: Last Controller Event
+
+          - entity: sensor.hvac_balancing_test_last_watchdog
+            name: Last Safety Watchdog
+
+          - entity: sensor.hvac_balancing_test_next_watchdog
+            name: Next Safety Watchdog
+
+          - entity: sensor.hvac_balancing_test_next_watchdog_in
+            name: Next Watchdog In
+
+          - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
+            name: Bed 1 - Cooling Exposure
+
+          - entity: sensor.hvac_balancing_test_bed_1_next_adaptive_due
+            name: Bed 1 - Next Adaptive Due
+
+          - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
+            name: Bed 2 - Cooling Exposure
+
+          - entity: sensor.hvac_balancing_test_bed_2_next_adaptive_due
+            name: Bed 2 - Next Adaptive Due
+
+          - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
+            name: Bed 3 - Cooling Exposure
+
+          - entity: sensor.hvac_balancing_test_bed_3_next_adaptive_due
+            name: Bed 3 - Next Adaptive Due
+
+      - type: markdown
+        title: Python Controller - Observation Only
+        content: |
+          **Phase 2:** The Python controller is connected to the virtual
+          Test Bench in observation-only mode.
+
+          It calculates controller demand but sends **no actuator commands**.
+
+          **beta.8:** production configuration is now installation-agnostic.
+          The user selects the thermostat, reference temperature sensor, and an
+          arbitrary number of balancing zones. Each zone owns a stable ID,
+          temperature sensor, and booster fan. Production configuration can be
+          edited later through Home Assistant integration options.
+
+          Change the virtual temperatures and compare the calculated outputs
+          below.
+
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+
+          - type: entities
+            title: Python - Bed 1
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_1_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_1_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_1_effective_percentage
+                name: Effective Percentage
+
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_1_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_1_adaptive_action
+                name: Adaptive Action
+
+          - type: entities
+            title: Python - Bed 2
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_2_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_2_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_2_effective_percentage
+                name: Effective Percentage
+
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_2_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_2_adaptive_action
+                name: Adaptive Action
+
+          - type: entities
+            title: Python - Bed 3
+            show_header_toggle: false
+            entities:
+
+              - entity: sensor.hvac_balancing_test_bed_3_base_p
+                name: Base P
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_i
+                name: Adaptive I
+
+              - entity: sensor.hvac_balancing_test_bed_3_pi_target
+                name: PI Target
+
+              - entity: sensor.hvac_balancing_test_bed_3_effective_percentage
+                name: Effective Percentage
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_window
+                name: Cooling Exposure
+
+              - entity: sensor.hvac_balancing_test_bed_3_improvement_rate
+                name: Trend F / 10 Cooling Min
+
+              - entity: sensor.hvac_balancing_test_bed_3_adaptive_action
+                name: Adaptive Action
+
+      - type: entities
+        title: Python Controller - Global Decision
+        show_header_toggle: false
+        entities:
+
+          - entity: binary_sensor.hvac_balancing_test_central_assist
+            name: Central Blower Assist Requested
+
+      - type: markdown
+        title: Manual Validation Ideas
+        content: |
+          **Compressor cycle**
+
+          Keep HVAC mode on `cool`, then move Thermostat Temperature above
+          and below the thermostat target.
+
+          Kitchen / Reference remains independent and is used by the balancing
+          controller rather than by the virtual thermostat.
+
+          Expected climate action sequence:
+
+          `cooling -> idle -> cooling`
+
+          **Hysteresis**
+
+          Hold Kitchen at 75°F and move one bedroom through:
+
+          `76.4 -> 76.5 -> 76.6 -> 76.4 -> 76.3`
+
+          **Sensor failure**
+
+          Turn a Sensor Available control OFF. Its corresponding
+          `sensor.hvac_test_*` entity should become unavailable.
+
+          **Booster failure**
+
+          Turn a Booster Available control OFF. Its corresponding
+          virtual `fan` entity should become unavailable.

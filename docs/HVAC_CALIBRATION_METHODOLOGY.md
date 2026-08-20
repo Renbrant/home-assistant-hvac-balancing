@@ -1,3 +1,10 @@
+# CURRENT PRODUCTION BASELINE - v0.2.0-beta.9
+
+> Current field calibration should use post-cutover v0.2 Production data.
+> Pre-v0.1.3 Adaptive reset data remains useful as historical defect evidence.
+
+---
+
 # HVAC Balancing Calibration Methodology
 
 ## Purpose

@@ -6,10 +6,39 @@ A smart HVAC room-balancing system built with **Home Assistant**, independent Zi
 
 The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current development version: v0.1.3 — Cooling-Only PI-Lite Balancing**
-> **Development status: Beta**
-> **Next planned maintenance version: v0.1.4**
-> The current bedroom-balancing controller is operational and field-tested for cooling. Heating balancing is intentionally deferred until additional lower-floor boosters are installed.
+> **Current release: v0.2.0-beta.9 - Home Assistant Custom Integration**
+> **Status: Beta / Active Production field validation**
+> **Production controller: Python HVAC Balancing integration**
+> v0.1.3 is retained temporarily as a quarantined rollback/reference implementation.
+
+---
+
+# Version 0.2.0-beta.9
+
+Version **v0.2.0-beta.9** completes the controlled migration from the v0.1.3 YAML/Jinja controller to the Python Home Assistant Custom Integration.
+
+Production validation on Home Assistant **2026.8.2** confirmed:
+
+- 34/34 v0.2 entities healthy
+- 15/15 historical calculated entity IDs preserved
+- zero `_2` / `_3` entity-ID collisions
+- 15/15 Recorder histories preserved across the migration
+- physical Bed 1 / Bed 2 / Bed 3 booster actuation validated
+- Nest Central Assist ownership validated
+- legacy v0.1.3 physical authority disabled
+
+The release remains beta while additional complete cooling cycles and Adaptive decisions are observed.
+
+Documentation:
+
+- [Documentation Index](docs/README.md)
+- [Installation](docs/INSTALLATION.md)
+- [Production Monitoring](docs/MONITORING.md)
+- [Production Cutover](docs/v0.2-production-cutover.md)
+- [Adaptive Cooling Exposure](docs/v0.2-adaptive-cooling-exposure-policy.md)
+- [Production Cutover Report](docs/development/v0.2.0-beta.9-production-cutover-report.md)
+- [Release Notes](docs/releases/v0.2.0-beta.9.md)
+- [Changelog](CHANGELOG.md)
 
 ---
 
@@ -57,6 +86,7 @@ Heating will then be treated as a separate multi-zone balancing problem rather t
 | **v0.1.1** | Added Bed 3 and expanded the controller to three independently controlled bedrooms |
 | **v0.1.2** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
 | **v0.1.3** | Fixed Adaptive I reset behavior and formalized the current controller as cooling-only |
+| **v0.2.0-beta.9** | Migrated Production control to the Python Custom Integration with cooling-exposure Adaptive I and Recorder continuity |
 
 ---
 # The Problem

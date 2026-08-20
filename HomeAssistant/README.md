@@ -2,10 +2,10 @@
 
 This directory contains the Home Assistant configuration used by the **Home Assistant HVAC Balancing** project.
 
-> **Current development version: v0.1.3 — Cooling-Only PI-Lite Balancing**
-> **Development status: Beta**
-> **Next planned maintenance version: v0.1.4**
-> The current three-bedroom controller is operational and field-tested for cooling. Heating balancing is intentionally deferred until appropriate lower-floor boosters are installed.
+> **Current Production version: v0.2.0-beta.9**
+> **Architecture: Python Home Assistant Custom Integration**
+> **HomeAssistant directory: legacy v0.1.3 reference / rollback material**
+> Never enable the legacy physical controller while the v0.2 Production integration has actuator authority.
 
 Version 0.1.3 builds on the PI-lite controller introduced in v0.1.2, fixes unintended Adaptive I resets caused by thermostat attribute changes, and explicitly limits the installed bedroom actuators to cooling-mode balancing.
 
@@ -26,6 +26,32 @@ Final PI Target
 ```
 
 The local bedroom boosters remain the primary balancing actuators. The Nest central blower is now used as a **second-stage assist** only when stronger whole-system circulation is justified.
+
+---
+
+# v0.2 Production Integration
+
+The active Production controller is now:
+
+```text
+custom_components/hvac_balancing
+```
+
+Production mapping:
+
+| Function | Entity |
+|---|---|
+| Thermostat | `climate.kitchen` |
+| Kitchen reference | `sensor.kitchen_temp_temperature` |
+| Bed 1 temperature | `sensor.bed_1_temp_temperature` |
+| Bed 1 booster | `fan.bed_1_booster` |
+| Bed 2 temperature | `sensor.bed_2_temp_temperature` |
+| Bed 2 booster | `fan.bed_2_booster` |
+| Bed 3 temperature | `sensor.bed_3_temp_temperature` |
+| Bed 3 booster | `fan.bed_3_booster` |
+| Central Assist | Nest fan timer through `climate.kitchen` |
+
+The YAML controller files in this directory document the v0.1.3 implementation and remain available only for rollback/reference.
 
 ---
 

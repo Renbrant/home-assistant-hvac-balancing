@@ -28,7 +28,7 @@ Reconstructed resolution:
 Methodology:
 
 ```text
-docs/HVAC_CALIBRATION_METHODOLOGY.md
+validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md
 ```
 
 ---

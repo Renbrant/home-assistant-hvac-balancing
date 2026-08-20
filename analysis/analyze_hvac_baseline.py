@@ -2,12 +2,12 @@
 """Reproducible HVAC field-history analyzer.
 
 Implements the quantitative methodology documented in
-``docs/HVAC_CALIBRATION_METHODOLOGY.md``.
+``validation/methodology/HVAC_CALIBRATION_METHODOLOGY.md``.
 
 The analyzer uses only the Python standard library and operates on normalized
-field-history datasets stored under ``data/field-history``.
+field-history datasets stored under ``validation/field-history``.
 
-Analysis methodology version: 1.0.0
+Analysis methodology version: 1.2.0
 """
 
 from __future__ import annotations
@@ -24,7 +24,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-ANALYSIS_VERSION = "1.0.0"
+from booster_activity_metrics import booster_activity_metrics
+
+ANALYSIS_VERSION = "1.2.0"
 RESOLUTION_MINUTES = 1
 RESPONSE_START_STEP_MINUTES = 5
 RESPONSE_HORIZON_MINUTES = 20
@@ -567,6 +569,15 @@ def analyze_bed(
         and row[prefix + "_fan"] > 0
     ]
 
+    active_errors = [
+        row[prefix + "_error"]
+        for row in active
+    ]
+    active_abs_deltas = [
+        row[prefix + "_abs_delta"]
+        for row in active
+    ]
+
     fan_values = [
         row[prefix + "_fan"]
         for row in records
@@ -601,6 +612,12 @@ def analyze_bed(
         if value > 0
     ]
 
+    booster_activity = booster_activity_metrics(
+        series,
+        prefix,
+        RESOLUTION_MINUTES,
+    )
+
     transition = transitions[bed_name]
 
     return {
@@ -610,6 +627,19 @@ def analyze_bed(
             "p90": rounded(percentile(errors, 0.90), 2),
             "maximum": rounded(max(errors) if errors else None, 2),
             "mean_absolute_room_delta": rounded(mean(abs_deltas), 2),
+        },
+        "directional_hvac_active": {
+            "mean": rounded(mean(active_errors), 2),
+            "median": rounded(median(active_errors), 2),
+            "p90": rounded(percentile(active_errors, 0.90), 2),
+            "maximum": rounded(
+                max(active_errors) if active_errors else None,
+                2,
+            ),
+            "mean_absolute_room_delta": rounded(
+                mean(active_abs_deltas),
+                2,
+            ),
         },
         "bands": {
             "all_time": error_bands(errors),
@@ -623,6 +653,7 @@ def analyze_bed(
             ),
         },
         "booster": {
+            **booster_activity,
             "average_effective_pct": rounded(mean(fan_values), 1),
             "time_ge_80_pct": rounded(pct(len(high_fan), len(records)), 1),
             "time_100_pct": rounded(pct(len(full_fan), len(records)), 1),
@@ -719,6 +750,7 @@ def analyze(dataset: str) -> dict[str, Any]:
             "response_window_minutes": RESPONSE_HORIZON_MINUTES,
             "response_start_step_minutes": RESPONSE_START_STEP_MINUTES,
             "response_checkpoints_minutes": list(RESPONSE_CHECKPOINTS_MINUTES),
+            "booster_active_definition": "effective_percentage > 0",
             "adaptive_climate_coincidence_seconds": (
                 ADAPTIVE_CLIMATE_COINCIDENCE_SECONDS
             ),
@@ -828,6 +860,65 @@ def render_text(result: dict[str, Any]) -> None:
         print(
             f"  During >=80% fan, error still >=2F: "
             f"{booster['high_fan_still_error_ge_2_pct']:.1f}%"
+        )
+        print()
+
+        print("Booster activity / workload:")
+        print(
+            f"  Active runtime (>0%): {booster['active_runtime_pct']:.1f}%"
+        )
+        print(
+            "  Active runtime:",
+            fmt(booster["active_runtime_hours"], 2),
+            "hours",
+        )
+        print(
+            f"  Active during HVAC: {booster['active_runtime_hvac_pct']:.1f}%"
+        )
+        print(
+            "  Average command during HVAC:",
+            fmt(booster["average_effective_pct_hvac"], 1) + "%",
+        )
+        print(
+            "  Average command while active:",
+            fmt(booster["average_pct_while_active"], 1) + "%",
+        )
+        print("  Active episodes:", booster["active_episodes"])
+        print(
+            "  Median active episode:",
+            fmt(booster["median_active_episode_minutes"], 1),
+            "minutes",
+        )
+        print(
+            "  P90 active episode:",
+            fmt(booster["p90_active_episode_minutes"], 1),
+            "minutes",
+        )
+        print(
+            "  Longest active episode:",
+            fmt(booster["longest_active_episode_minutes"], 1),
+            "minutes",
+        )
+        print("  Command changes:", booster["command_changes"])
+        print(
+            "  Active speed modulations:",
+            booster["active_modulation_changes"],
+        )
+        print(
+            "  HVAC-scoped active modulations / HVAC hour:",
+            fmt(booster["active_modulation_changes_per_hvac_hour"], 2),
+        )
+        print(
+            "  Median minutes between active modulations (whole window):",
+            fmt(booster["median_minutes_between_active_modulations"], 1),
+        )
+        print(
+            "  Equivalent full-speed hours:",
+            fmt(booster["equivalent_full_speed_hours"], 3),
+        )
+        print(
+            "  Equivalent full-speed hours during HVAC:",
+            fmt(booster["equivalent_full_speed_hours_hvac"], 3),
         )
         print()
 

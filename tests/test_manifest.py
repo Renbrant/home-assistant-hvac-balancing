@@ -46,7 +46,7 @@ def test_manifest_identity() -> None:
 
     assert manifest["domain"] == "hvac_balancing"
     assert manifest["name"] == "HVAC Balancing"
-    assert manifest["version"] == "0.2.0-beta.9"
+    assert manifest["version"] == "0.2.10"
 
 
 def test_manifest_architecture() -> None:
@@ -69,3 +69,14 @@ def test_manifest_distribution_metadata() -> None:
     assert manifest["codeowners"] == ["@Renbrant"]
     assert manifest["documentation"]
     assert manifest["issue_tracker"]
+
+
+def test_runtime_version_matches_manifest() -> None:
+    """Keep manifest and runtime version identifiers synchronized."""
+
+    manifest = load_manifest()
+    const_text = (INTEGRATION / "const.py").read_text(encoding="utf-8")
+
+    expected = f'VERSION = "{manifest["version"]}"'
+
+    assert expected in const_text

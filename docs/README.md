@@ -11,7 +11,8 @@
 | [Adaptive Cooling Exposure](v0.2-adaptive-cooling-exposure-policy.md) | Active Adaptive I policy |
 | [Calibration Methodology](HVAC_CALIBRATION_METHODOLOGY.md) | Field-data analysis methodology |
 | [beta.9 Production Report](development/v0.2.0-beta.9-production-cutover-report.md) | Production validation |
-| [beta.9 Release Notes](releases/v0.2.0-beta.9.md) | Current release summary |
+| [v0.2.10 Release Notes](releases/v0.2.10.md) | HACS distribution release |
+| [beta.9 Release Notes](releases/v0.2.0-beta.9.md) | Production cutover release summary |
 
 Production controller:
 
@@ -19,4 +20,4 @@ Production controller:
 custom_components/hvac_balancing
 ```
 
-The project remains beta during Production field observation.
+The project remains pre-1.0 while Production field review and distribution validation continue.

@@ -6,10 +6,54 @@ A smart HVAC room-balancing system built with **Home Assistant**, independent Zi
 
 The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current release: v0.2.0-beta.9 - Home Assistant Custom Integration**
-> **Status: Beta / Active Production field validation**
+> **Current release: v0.2.10 - Home Assistant Custom Integration**
+> **Status: Pre-1.0 / Active Production**
 > **Production controller: Python HVAC Balancing integration**
 > v0.1.3 is retained temporarily as a quarantined rollback/reference implementation.
+
+## Install with HACS
+
+The recommended installation method starting with **v0.2.10** is HACS.
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Renbrant&repository=home-assistant-hvac-balancing&category=integration)
+
+If the repository is not already registered in HACS:
+
+1. Open **HACS** in Home Assistant.
+2. Open **Custom repositories**.
+3. Add `https://github.com/Renbrant/home-assistant-hvac-balancing`.
+4. Select **Integration** as the repository type.
+5. Open **HVAC Balancing** and download the latest release.
+6. Restart Home Assistant.
+7. Go to **Settings -> Devices & services -> Add Integration**.
+8. Search for **HVAC Balancing** and complete the configuration flow.
+
+Manual installation remains available as a fallback. See [Installation](docs/INSTALLATION.md).
+
+---
+
+# Version 0.2.10
+
+Version **v0.2.10** establishes the official HACS custom-repository distribution path for HVAC Balancing.
+
+The HVAC controller itself is unchanged from the Production-validated v0.2.0-beta.9 implementation.
+
+## What's New in v0.2.10
+
+- HACS repository metadata through `hacs.json`
+- direct HACS installation instructions
+- My Home Assistant / HACS repository shortcut
+- local Home Assistant integration branding
+- 256x256 and 512x512 integration icons
+- synchronized manifest and runtime version identifiers
+- automated protection against version drift
+- 182 passing automated tests plus 22 passing subtests
+
+This release also adopts the simplified **0.x pre-1.0 versioning convention**. Future development releases will use versions such as `0.2.11`, `0.2.12`, and so on instead of adding a `beta` suffix.
+
+The controlled Production cutover performed with v0.2.0-beta.9 remains the validation basis for the controller behavior.
+
+See [v0.2.10 Release Notes](docs/releases/v0.2.10.md) for details.
 
 ---
 
@@ -87,6 +131,7 @@ Heating will then be treated as a separate multi-zone balancing problem rather t
 | **v0.1.2** | Added active PI-lite adaptive balancing, second-stage Nest circulation, and enhanced Plotly monitoring |
 | **v0.1.3** | Fixed Adaptive I reset behavior and formalized the current controller as cooling-only |
 | **v0.2.0-beta.9** | Migrated Production control to the Python Custom Integration with cooling-exposure Adaptive I and Recorder continuity |
+| **v0.2.10** | Added HACS distribution, local integration branding, and simplified pre-1.0 versioning |
 
 ---
 # The Problem

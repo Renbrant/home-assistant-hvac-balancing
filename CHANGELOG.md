@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.2.11 - 2026-08-22
+
+### Controller tuning
+
+- Raised the default Central Assist threshold from Speed 8 to Speed 10.
+- Central blower assistance is now reserved for maximum local booster demand.
+- Speed 8 no longer requests Central Assist.
+- Speed 10 continues to request Central Assist when HVAC mode is cool.
+
+### Preserved behavior
+
+- Base P thresholds and hysteresis are unchanged.
+- Adaptive I behavior is unchanged.
+- Maximum booster speed remains 10.
+- Five-minute Central Assist release grace is unchanged.
+- Nest fan-timer and cool/idle semantics are unchanged.
+
+### Validation
+
+- Focused controller tests: 47 passed plus 22 subtests.
+- Complete suite: 189 passed plus 22 subtests.
+- git diff --check passed.
+- Issue #23 implementation and decision documentation are included.
+
 ## v0.2.10 - 2026-08-19
 
 ### Distribution

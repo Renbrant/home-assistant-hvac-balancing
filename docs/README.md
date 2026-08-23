@@ -11,6 +11,7 @@
 | [Adaptive Cooling Exposure](v0.2-adaptive-cooling-exposure-policy.md) | Active Adaptive I policy |
 | [Calibration Methodology](HVAC_CALIBRATION_METHODOLOGY.md) | Field-data analysis methodology |
 | [beta.9 Production Report](development/v0.2.0-beta.9-production-cutover-report.md) | Production validation |
+| [v0.2.11 Release Notes](releases/v0.2.11.md) | Central Assist Speed 10 tuning release |
 | [v0.2.10 Release Notes](releases/v0.2.10.md) | HACS distribution release |
 | [beta.9 Release Notes](releases/v0.2.0-beta.9.md) | Production cutover release summary |
 

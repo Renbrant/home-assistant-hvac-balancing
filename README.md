@@ -6,7 +6,7 @@ A smart HVAC room-balancing system built with **Home Assistant**, independent Zi
 
 The goal is to reduce temperature differences between rooms by redistributing conditioned air intelligently instead of relying only on additional heating or cooling cycles.
 
-> **Current release: v0.2.10 - Home Assistant Custom Integration**
+> **Current release: v0.2.11 - Home Assistant Custom Integration**
 > **Status: Pre-1.0 / Active Production**
 > **Production controller: Python HVAC Balancing integration**
 > v0.1.3 is retained temporarily as a quarantined rollback/reference implementation.
@@ -29,6 +29,23 @@ If the repository is not already registered in HACS:
 8. Search for **HVAC Balancing** and complete the configuration flow.
 
 Manual installation remains available as a fallback. See [Installation](docs/INSTALLATION.md).
+
+---
+
+# Version 0.2.11
+
+Version **v0.2.11** is a targeted Production tuning release.
+
+## What's New in v0.2.11
+
+- Central Assist activation threshold increased from Speed 8 to Speed 10
+- Central blower assistance is now reserved for maximum local booster demand
+- Speed 8 remains local-booster-only
+- Base P, Adaptive I, five-minute release grace, and Nest fan-timer behavior remain unchanged
+- regression coverage updated for Speed 8 OFF and Speed 10 ON behavior
+- 189 automated tests plus 22 subtests validated before release preparation
+
+See [v0.2.11 Release Notes](docs/releases/v0.2.11.md) for details.
 
 ---
 

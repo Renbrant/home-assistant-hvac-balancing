@@ -46,7 +46,7 @@ def test_manifest_identity() -> None:
 
     assert manifest["domain"] == "hvac_balancing"
     assert manifest["name"] == "HVAC Balancing"
-    assert manifest["version"] == "0.2.10"
+    assert manifest["version"] == "0.2.11"
 
 
 def test_manifest_architecture() -> None:

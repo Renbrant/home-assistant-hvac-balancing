@@ -1,6 +1,6 @@
 # HVAC Balancing v0.2 Installation
 
-**Current release: v0.2.10**
+**Current release: v0.2.11**
 
 ## Safety
 

@@ -65,7 +65,7 @@ class ControllerSettings:
     good_improvement_threshold: float = 0.5
     max_speed: int = 10
     minimum_cooling_speed: int = 1
-    central_assist_threshold: int = 8
+    central_assist_threshold: int = 10
 
 
 DEFAULT_SETTINGS = ControllerSettings()

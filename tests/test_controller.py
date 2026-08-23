@@ -767,7 +767,7 @@ class StartupTests(unittest.TestCase):
 
 class CentralAssistTests(unittest.TestCase):
 
-    def test_below_eight_is_false(self) -> None:
+    def test_below_ten_is_false(self) -> None:
         decision = zone(
             room=77.6,
             reference=75.0,
@@ -780,7 +780,7 @@ class CentralAssistTests(unittest.TestCase):
             )
         )
 
-    def test_exactly_eight_is_true(self) -> None:
+    def test_exactly_eight_is_false(self) -> None:
         decision = zone(
             room=78.0,
             reference=75.0,
@@ -788,14 +788,14 @@ class CentralAssistTests(unittest.TestCase):
 
         self.assertEqual(decision.pi_target, 8)
 
-        self.assertTrue(
+        self.assertFalse(
             central_assist_required(
                 "cool",
                 [decision],
             )
         )
 
-    def test_above_eight_is_true(self) -> None:
+    def test_exactly_ten_is_true(self) -> None:
         previous = ZoneState(
             base_target=8,
             adaptive_boost=2,
@@ -840,14 +840,14 @@ class CentralAssistTests(unittest.TestCase):
             )
         )
 
-    def test_any_zone_at_eight_requests_assist(self) -> None:
+    def test_any_zone_at_ten_requests_assist(self) -> None:
         low = zone(
             room=76.6,
             reference=75.0,
         )
 
         high = zone(
-            room=78.0,
+            room=78.5,
             reference=75.0,
         )
 
